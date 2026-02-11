@@ -1,0 +1,13 @@
+node_modules/
+.DS_Store
+*.log
+config.json
+.env
+~/.terminal-gateway-token
+
+# iOS
+ios-app/IphoneMacConnector/IphoneMacConnector.xcodeproj/xcuserdata/
+ios-app/IphoneMacConnector/IphoneMacConnector.xcodeproj/project.xcworkspace/xcuserdata/
+*.xcuserdata
+DerivedData/
+build/
