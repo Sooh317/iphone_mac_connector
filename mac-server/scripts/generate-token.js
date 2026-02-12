@@ -56,6 +56,9 @@ function generateToken() {
  */
 function main() {
   try {
+    // Check for --show-token flag
+    const showToken = process.argv.includes('--show-token');
+
     const tokenFilePath = getTokenFilePath();
     const token = generateToken();
 
@@ -76,18 +79,25 @@ function main() {
     console.log('Token file:', tokenFilePath);
     console.log('');
 
-    // Only show token in interactive terminal (not in logs)
-    if (process.stdout.isTTY) {
-      console.log('Your authentication token (save this, it will not be shown again):');
+    // Only show token if explicitly requested with --show-token flag
+    if (showToken) {
+      console.log('Your authentication token:');
       console.log('');
       console.log(`  ${token}`);
       console.log('');
       console.log('Use this token in the Authorization header:');
       console.log(`  Authorization: Bearer ${token}`);
       console.log('');
+      console.log('WARNING: This token provides full access. Keep it secure and never commit it to version control.');
+      console.log('');
     } else {
-      console.log('Token has been saved securely.');
-      console.log('To view the token, use:');
+      console.log('Token has been saved securely to the file above.');
+      console.log('');
+      console.log('For security, the token is not displayed by default.');
+      console.log('To view it once, run:');
+      console.log(`  node scripts/generate-token.js --show-token`);
+      console.log('');
+      console.log('Or read directly from file (ensure secure environment):');
       console.log(`  cat ${tokenFilePath}`);
       console.log('');
     }

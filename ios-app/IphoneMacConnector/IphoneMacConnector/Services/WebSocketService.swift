@@ -42,6 +42,7 @@ class WebSocketService: NSObject, ObservableObject {
     private let maxReconnectAttempts = 5
     private var lastServerHeartbeat: Date = Date()
     private var heartbeatTimeoutTimer: Timer?
+    private var isReconnecting = false
 
     // Callbacks
     var onMessageReceived: ((WSMessage) -> Void)?
@@ -71,6 +72,7 @@ class WebSocketService: NSObject, ObservableObject {
         self.config = config
         shouldReconnect = true
         reconnectAttempts = 0
+        isReconnecting = false
 
         performConnection(url: url, token: config.token)
     }
@@ -97,6 +99,7 @@ class WebSocketService: NSObject, ObservableObject {
     /// Disconnect from WebSocket server
     func disconnect() {
         shouldReconnect = false
+        isReconnecting = false
         stopHeartbeat()
         stopReconnectTimer()
 
@@ -209,15 +212,18 @@ class WebSocketService: NSObject, ObservableObject {
 
         stopHeartbeat()
 
-        // Attempt reconnection if needed
-        if shouldReconnect && reconnectAttempts < maxReconnectAttempts {
-            attemptReconnection()
-        } else {
-            disconnect()
-        }
+        // Close the WebSocket to trigger didCloseWith for reconnection handling
+        webSocketTask?.cancel(with: .abnormalClosure, reason: nil)
     }
 
     private func attemptReconnection() {
+        // Prevent multiple concurrent reconnection attempts
+        guard !isReconnecting else {
+            print("WebSocketService: Reconnection already in progress, skipping")
+            return
+        }
+
+        isReconnecting = true
         reconnectAttempts += 1
         let delay = min(Double(reconnectAttempts) * 2.0, 30.0) // Exponential backoff, max 30s
 
@@ -227,11 +233,13 @@ class WebSocketService: NSObject, ObservableObject {
 
         reconnectTimer = Timer.scheduledTimer(withTimeInterval: delay, repeats: false) { [weak self] _ in
             guard let self = self, let config = self.config, let url = config.websocketURL else {
+                self?.isReconnecting = false
                 return
             }
 
             print("WebSocketService: Attempting to reconnect...")
             self.performConnection(url: url, token: config.token)
+            self.isReconnecting = false
         }
     }
 
@@ -271,12 +279,8 @@ class WebSocketService: NSObject, ObservableObject {
             self.lastError = "Server heartbeat timeout"
         }
 
-        // Attempt reconnection
-        if shouldReconnect && reconnectAttempts < maxReconnectAttempts {
-            attemptReconnection()
-        } else {
-            disconnect()
-        }
+        // Close the WebSocket to trigger didCloseWith for reconnection handling
+        webSocketTask?.cancel(with: .protocolError, reason: "Heartbeat timeout".data(using: .utf8))
     }
 
     private func stopReconnectTimer() {

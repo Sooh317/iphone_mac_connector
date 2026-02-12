@@ -38,17 +38,66 @@ cd mac-server
 npm install
 ```
 
-### 2. トークンの生成
+### 2. 設定ファイルの作成（オプション）
+
+```bash
+cp config.json.example config.json
+chmod 600 config.json  # セキュリティのため必須
+```
+
+### 3. トークンの生成
 
 ```bash
 npm run generate-token
 ```
 
-### 3. サーバーの起動
+トークンを表示する場合：
 
 ```bash
-npm start
+npm run generate-token -- --show-token
 ```
+
+### 4. サーバーの起動
+
+```bash
+# 本番環境（Tailscale IPでのバインド）
+npm start
+
+# 開発/テスト環境（localhostでのバインド）
+ALLOW_INSECURE_BIND=true npm start
+```
+
+## セキュリティ
+
+### ネットワークバインディング
+
+本サーバーは、デフォルトで**Tailscale IPアドレス**へのバインドのみを許可します。
+
+- **本番環境**: Tailscale IPアドレス（100.x.x.x）にバインド
+- **開発/テスト環境のみ**: `ALLOW_INSECURE_BIND=true` 環境変数で localhost へのバインドを許可
+
+例：
+```bash
+# 本番環境（推奨）
+export GATEWAY_HOST=100.x.x.x  # あなたのTailscale IP
+npm start
+
+# 開発環境のみ
+ALLOW_INSECURE_BIND=true npm start
+```
+
+### トークンセキュリティ
+
+- トークンファイルは **0600** パーミッション（所有者のみ読み書き可能）が必須
+- config.json も **0600** パーミッションが必須
+- トークンは最低32バイト（256ビット）の強度が必要
+
+### グレースフルシャットダウン
+
+サーバーは以下のシグナルで安全にシャットダウンします：
+- `SIGINT` (Ctrl+C)
+- `SIGTERM`
+- 未処理の例外やPromise拒否も自動的に処理
 
 ## 接続テスト
 
@@ -56,7 +105,7 @@ WebSocket クライアントで接続テスト:
 
 ```bash
 # wscat を使用 (npm install -g wscat)
-TOKEN=$(docker exec terminal-gateway cat /data/terminal-gateway-token)
+TOKEN=$(cat ~/.terminal-gateway-token)
 wscat -c ws://localhost:8765 -H "Authorization: Bearer $TOKEN"
 ```
 

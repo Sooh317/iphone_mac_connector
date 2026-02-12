@@ -13,6 +13,7 @@ services:
       - NODE_ENV=production
       - GATEWAY_HOST=${GATEWAY_HOST:-127.0.0.1}
       - GATEWAY_TOKEN_FILE=/data/terminal-gateway-token
+      - ALLOW_INSECURE_BIND=${ALLOW_INSECURE_BIND:-true}
     restart: unless-stopped
     networks:
       - gateway-network

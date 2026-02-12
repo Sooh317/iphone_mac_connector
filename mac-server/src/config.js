@@ -28,8 +28,21 @@ function expandTilde(filepath) {
  * Validate listen host is Tailscale interface or localhost
  */
 function validateListenHost(host) {
-  // Always allow localhost/loopback
-  if (host === '127.0.0.1' || host === 'localhost' || host === '::1') {
+  // Check for insecure bindings first
+  const isInsecureBinding = host === '0.0.0.0' || host === '::' ||
+                            host === '127.0.0.1' || host === 'localhost' || host === '::1';
+
+  if (isInsecureBinding) {
+    // Only allow with explicit permission
+    if (process.env.ALLOW_INSECURE_BIND !== 'true') {
+      throw new Error(
+        `Insecure binding to ${host} is not allowed by default.\n` +
+        `For production, bind to a Tailscale IP address (100.x.x.x).\n` +
+        `For development/testing only, set ALLOW_INSECURE_BIND=true environment variable.`
+      );
+    }
+    console.warn(`WARNING: Insecure binding to ${host} allowed by ALLOW_INSECURE_BIND flag.`);
+    console.warn('This should only be used for development/testing, not production.');
     return;
   }
 
@@ -54,21 +67,12 @@ function validateListenHost(host) {
     return;
   }
 
-  // Allow 0.0.0.0 with warning (for Docker/container environments)
-  if (host === '0.0.0.0' || host === '::') {
-    console.warn('WARNING: Listening on all interfaces (0.0.0.0). Ensure Tailscale ACL is properly configured.');
-    console.warn('For better security, bind to a specific Tailscale IP or 127.0.0.1');
-    return;
-  }
-
   // Reject other addresses
   throw new Error(
     `Invalid listen host: ${host}\n` +
-    `Host must be:\n` +
-    `  - 127.0.0.1 (localhost)\n` +
-    `  - Tailscale interface IP (100.x.x.x)\n` +
-    `  - 0.0.0.0 (all interfaces, not recommended)\n` +
-    `Available Tailscale IPs: ${tailscaleIps.length > 0 ? tailscaleIps.join(', ') : 'none detected'}`
+    `Host must be a Tailscale interface IP (100.x.x.x).\n` +
+    `Available Tailscale IPs: ${tailscaleIps.length > 0 ? tailscaleIps.join(', ') : 'none detected'}\n` +
+    `For development/testing only, you can use ALLOW_INSECURE_BIND=true with localhost.`
   );
 }
 

@@ -38,6 +38,15 @@ function loadToken() {
       throw new Error('Token file is empty');
     }
 
+    // Validate token length (must be at least 32 bytes)
+    const tokenLength = Buffer.byteLength(cachedToken, 'utf8');
+    if (tokenLength < 32) {
+      throw new Error(
+        `Token is too short: ${tokenLength} bytes (minimum 32 bytes required)\n` +
+        'Please regenerate token with: npm run generate-token'
+      );
+    }
+
     return cachedToken;
   } catch (error) {
     throw new Error(`Failed to read token file: ${error.message}`);

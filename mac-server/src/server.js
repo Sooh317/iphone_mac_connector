@@ -11,6 +11,9 @@ import * as logger from './logger.js';
 let activeConnections = 0;
 const MAX_CONNECTIONS = 1;
 
+// Track active sessions for graceful shutdown
+const activeSessions = new Set();
+
 /**
  * Send JSON message over WebSocket
  */
@@ -47,6 +50,10 @@ function handleConnection(ws, request) {
     activeConnections--;
     return;
   }
+
+  // Track session for graceful shutdown
+  const session = { ws, ptyProcess };
+  activeSessions.add(session);
 
   // Attach PTY to WebSocket
   attachPtyToWebSocket(ptyProcess, ws, (msg) => sendMessage(ws, msg));
@@ -115,9 +122,46 @@ function handleConnection(ws, request) {
     clearInterval(heartbeatInterval);
     clearInterval(timeoutCheck);
     activeConnections--;
+    activeSessions.delete(session);
     logger.logDisconnection(clientIp, 'client closed connection');
     killPty(ptyProcess);
   });
+}
+
+/**
+ * Graceful shutdown handler
+ */
+function shutdown(signal, server) {
+  logger.info(`Shutdown signal received: ${signal}`);
+
+  // Close all active sessions
+  for (const { ws, ptyProcess } of activeSessions) {
+    try {
+      ws.close(1001, 'Server shutdown');
+    } catch (error) {
+      logger.error(`Error closing WebSocket: ${error.message}`);
+    }
+
+    try {
+      killPty(ptyProcess);
+    } catch (error) {
+      logger.error(`Error killing PTY: ${error.message}`);
+    }
+  }
+
+  activeSessions.clear();
+
+  // Close HTTP server
+  server.close(() => {
+    logger.logServerStop();
+    process.exit(0);
+  });
+
+  // Force exit after 10 seconds if graceful shutdown fails
+  setTimeout(() => {
+    logger.error('Forced shutdown after timeout');
+    process.exit(1);
+  }, 10000);
 }
 
 /**
@@ -167,15 +211,23 @@ function startServer() {
   });
 
   // Handle shutdown gracefully
-  process.on('SIGINT', () => {
-    logger.logServerStop();
-    process.exit(0);
+  process.on('SIGINT', () => shutdown('SIGINT', server));
+  process.on('SIGTERM', () => shutdown('SIGTERM', server));
+
+  // Handle uncaught exceptions
+  process.on('uncaughtException', (error) => {
+    logger.error(`Uncaught exception: ${error.message}`);
+    logger.error(error.stack || '');
+    shutdown('uncaughtException', server);
   });
 
-  process.on('SIGTERM', () => {
-    logger.logServerStop();
-    process.exit(0);
+  // Handle unhandled promise rejections
+  process.on('unhandledRejection', (reason, promise) => {
+    logger.error(`Unhandled rejection at: ${promise}, reason: ${reason}`);
+    shutdown('unhandledRejection', server);
   });
+
+  return server;
 }
 
 // Start the server
