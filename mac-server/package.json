@@ -1,0 +1,21 @@
+{
+  "name": "terminal-gateway",
+  "version": "0.1.0",
+  "description": "Mac Terminal Gateway for iPhone-Mac Connector",
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "generate-token": "node scripts/generate-token.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "node-pty": "^1.1.0",
+    "ws": "^8.19.0"
+  }
+}
