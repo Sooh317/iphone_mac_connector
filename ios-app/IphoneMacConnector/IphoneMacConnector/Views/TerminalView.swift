@@ -2,16 +2,20 @@ import SwiftUI
 
 struct TerminalView: View {
     @ObservedObject var outputManager: TerminalOutputManager
+    var onResize: ((Int, Int) -> Void)? = nil
 
     @State private var scrollProxy: ScrollViewProxy?
     @State private var shouldAutoScroll = true
+    @State private var currentCols: Int = 80
+    @State private var currentRows: Int = 24
 
     var body: some View {
-        ZStack {
-            Color.black
-                .ignoresSafeArea()
+        GeometryReader { geometry in
+            ZStack {
+                Color.black
+                    .ignoresSafeArea()
 
-            if outputManager.outputText.isEmpty {
+                if outputManager.outputText.isEmpty {
                 VStack {
                     Image(systemName: "terminal")
                         .font(.system(size: 60))
@@ -47,26 +51,33 @@ struct TerminalView: View {
                 }
             }
 
-            // Auto-scroll toggle button
-            VStack {
-                Spacer()
-                HStack {
+                // Auto-scroll toggle button
+                VStack {
                     Spacer()
-                    Button(action: {
-                        shouldAutoScroll.toggle()
-                        if shouldAutoScroll, let proxy = scrollProxy {
-                            scrollToBottom(proxy: proxy)
+                    HStack {
+                        Spacer()
+                        Button(action: {
+                            shouldAutoScroll.toggle()
+                            if shouldAutoScroll, let proxy = scrollProxy {
+                                scrollToBottom(proxy: proxy)
+                            }
+                        }) {
+                            Image(systemName: shouldAutoScroll ? "arrow.down.circle.fill" : "arrow.down.circle")
+                                .font(.title2)
+                                .foregroundColor(shouldAutoScroll ? .green : .gray)
+                                .padding(12)
+                                .background(Color.black.opacity(0.7))
+                                .clipShape(Circle())
                         }
-                    }) {
-                        Image(systemName: shouldAutoScroll ? "arrow.down.circle.fill" : "arrow.down.circle")
-                            .font(.title2)
-                            .foregroundColor(shouldAutoScroll ? .green : .gray)
-                            .padding(12)
-                            .background(Color.black.opacity(0.7))
-                            .clipShape(Circle())
+                        .padding()
                     }
-                    .padding()
                 }
+            }
+            .onAppear {
+                calculateTerminalSize(from: geometry.size)
+            }
+            .onChange(of: geometry.size) { newSize in
+                calculateTerminalSize(from: newSize)
             }
         }
     }
@@ -74,6 +85,25 @@ struct TerminalView: View {
     private func scrollToBottom(proxy: ScrollViewProxy) {
         withAnimation {
             proxy.scrollTo("terminalBottom", anchor: .bottom)
+        }
+    }
+
+    private func calculateTerminalSize(from size: CGSize) {
+        // Approximate character size for system monospaced font (.body)
+        let charWidth: CGFloat = 8.4
+        let charHeight: CGFloat = 17.0
+        let padding: CGFloat = 16.0
+
+        let availableWidth = size.width - padding
+        let availableHeight = size.height - padding
+
+        let newCols = max(20, Int(availableWidth / charWidth))
+        let newRows = max(5, Int(availableHeight / charHeight))
+
+        if newCols != currentCols || newRows != currentRows {
+            currentCols = newCols
+            currentRows = newRows
+            onResize?(newCols, newRows)
         }
     }
 }

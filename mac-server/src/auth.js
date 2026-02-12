@@ -21,6 +21,16 @@ function loadToken() {
     );
   }
 
+  // Verify token file permissions (must be 600)
+  const stat = fs.statSync(tokenFile);
+  const mode = stat.mode & 0o777;
+  if (mode !== 0o600) {
+    throw new Error(
+      `Insecure token file mode: ${mode.toString(8)} (expected 600)\n` +
+      `Please run: chmod 600 ${tokenFile}`
+    );
+  }
+
   try {
     cachedToken = fs.readFileSync(tokenFile, 'utf8').trim();
 

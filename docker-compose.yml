@@ -5,14 +5,14 @@ services:
       dockerfile: Dockerfile
     container_name: terminal-gateway
     ports:
-      - "8765:8765"
+      - "${TAILSCALE_IP:-127.0.0.1}:8765:8765"
     volumes:
       # Mount token and logs directory
       - gateway-data:/data
-      # Mount config file
-      - ./mac-server/config.json:/app/config.json:ro
     environment:
       - NODE_ENV=production
+      - GATEWAY_HOST=${GATEWAY_HOST:-127.0.0.1}
+      - GATEWAY_TOKEN_FILE=/data/terminal-gateway-token
     restart: unless-stopped
     networks:
       - gateway-network

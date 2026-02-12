@@ -17,7 +17,9 @@ struct ContentView: View {
                     statusBar
 
                     // Terminal output
-                    TerminalView(outputManager: outputManager)
+                    TerminalView(outputManager: outputManager) { cols, rows in
+                        webSocketService.sendResize(cols: cols, rows: rows)
+                    }
 
                     // Command input
                     CommandInputView(isConnected: .constant(webSocketService.connectionState.isConnected)) { command in

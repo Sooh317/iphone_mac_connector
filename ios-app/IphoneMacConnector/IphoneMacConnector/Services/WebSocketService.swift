@@ -40,6 +40,8 @@ class WebSocketService: NSObject, ObservableObject {
     private var shouldReconnect = false
     private var reconnectAttempts = 0
     private let maxReconnectAttempts = 5
+    private var lastServerHeartbeat: Date = Date()
+    private var heartbeatTimeoutTimer: Timer?
 
     // Callbacks
     var onMessageReceived: ((WSMessage) -> Void)?
@@ -181,8 +183,8 @@ class WebSocketService: NSObject, ObservableObject {
                             self.lastError = errorMsg
                         }
                     case .heartbeat:
-                        // Heartbeat acknowledged
-                        break
+                        // Update last server heartbeat timestamp
+                        self.lastServerHeartbeat = Date()
                     default:
                         break
                     }
@@ -236,14 +238,45 @@ class WebSocketService: NSObject, ObservableObject {
     private func startHeartbeat() {
         stopHeartbeat()
 
+        lastServerHeartbeat = Date()
+
+        // Send heartbeat every 30 seconds
         heartbeatTimer = Timer.scheduledTimer(withTimeInterval: 30.0, repeats: true) { [weak self] _ in
             self?.sendHeartbeat()
+        }
+
+        // Check server heartbeat timeout every 15 seconds
+        heartbeatTimeoutTimer = Timer.scheduledTimer(withTimeInterval: 15.0, repeats: true) { [weak self] _ in
+            guard let self = self else { return }
+            let elapsed = Date().timeIntervalSince(self.lastServerHeartbeat)
+            if elapsed > 90.0 {
+                print("WebSocketService: Server heartbeat timeout (\(elapsed)s)")
+                self.handleHeartbeatTimeout()
+            }
         }
     }
 
     private func stopHeartbeat() {
         heartbeatTimer?.invalidate()
         heartbeatTimer = nil
+        heartbeatTimeoutTimer?.invalidate()
+        heartbeatTimeoutTimer = nil
+    }
+
+    private func handleHeartbeatTimeout() {
+        stopHeartbeat()
+
+        DispatchQueue.main.async {
+            self.connectionState = .error("Server heartbeat timeout")
+            self.lastError = "Server heartbeat timeout"
+        }
+
+        // Attempt reconnection
+        if shouldReconnect && reconnectAttempts < maxReconnectAttempts {
+            attemptReconnection()
+        } else {
+            disconnect()
+        }
     }
 
     private func stopReconnectTimer() {
