@@ -186,6 +186,8 @@ final class TerminalSession: ObservableObject {
 }
 
 private final class NativeTerminalView: SwiftTerm.TerminalView {
+    private var shortcutAccessory: TerminalShortcutAccessoryView?
+
     override init(frame: CGRect) {
         super.init(frame: frame)
         commonSetup()
@@ -208,6 +210,7 @@ private final class NativeTerminalView: SwiftTerm.TerminalView {
         keyboardAppearance = .dark
         autocorrectionType = .no
         autocapitalizationType = .none
+        setupShortcutAccessory()
     }
 
     override func didMoveToWindow() {
@@ -215,6 +218,153 @@ private final class NativeTerminalView: SwiftTerm.TerminalView {
         if window != nil {
             _ = becomeFirstResponder()
         }
+    }
+
+    private func setupShortcutAccessory() {
+        let accessory = TerminalShortcutAccessoryView(
+            frame: CGRect(x: 0, y: 0, width: UIScreen.main.bounds.width, height: 54),
+            inputViewStyle: .keyboard,
+            terminalView: self
+        )
+        shortcutAccessory = accessory
+        inputAccessoryView = accessory
+    }
+}
+
+private final class TerminalShortcutAccessoryView: UIInputView, UIInputViewAudioFeedback {
+    private enum Key: Int, CaseIterable {
+        case esc = 0
+        case ctrl
+        case tab
+        case slash
+        case left
+        case down
+        case up
+        case right
+
+        var title: String {
+            switch self {
+            case .esc: return "esc"
+            case .ctrl: return "ctrl"
+            case .tab: return "tab"
+            case .slash: return "/"
+            case .left: return "←"
+            case .down: return "↓"
+            case .up: return "↑"
+            case .right: return "→"
+            }
+        }
+    }
+
+    private weak var terminalView: SwiftTerm.TerminalView?
+    private let stackView = UIStackView()
+    private weak var ctrlButton: UIButton?
+
+    #if os(iOS)
+    var enableInputClicksWhenVisible: Bool { true }
+    #endif
+
+    init(frame: CGRect, inputViewStyle: UIInputView.Style, terminalView: SwiftTerm.TerminalView) {
+        self.terminalView = terminalView
+        super.init(frame: frame, inputViewStyle: inputViewStyle)
+        allowsSelfSizing = true
+        setupUI()
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(controlModifierDidReset),
+            name: .terminalViewControlModifierReset,
+            object: terminalView
+        )
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+
+    override var intrinsicContentSize: CGSize {
+        CGSize(width: UIView.noIntrinsicMetric, height: 54)
+    }
+
+    private func setupUI() {
+        backgroundColor = UIColor.systemGray6
+        stackView.axis = .horizontal
+        stackView.alignment = .fill
+        stackView.distribution = .fillEqually
+        stackView.spacing = 6
+        stackView.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(stackView)
+
+        NSLayoutConstraint.activate([
+            stackView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 8),
+            stackView.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -8),
+            stackView.topAnchor.constraint(equalTo: topAnchor, constant: 6),
+            stackView.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -6)
+        ])
+
+        for key in Key.allCases {
+            let button = makeButton(for: key)
+            if key == .ctrl {
+                ctrlButton = button
+            }
+            stackView.addArrangedSubview(button)
+        }
+
+        syncControlButtonState()
+    }
+
+    private func makeButton(for key: Key) -> UIButton {
+        let button = UIButton(type: .system)
+        button.tag = key.rawValue
+        button.setTitle(key.title, for: .normal)
+        button.titleLabel?.font = UIFont.systemFont(ofSize: 15, weight: .semibold)
+        button.layer.cornerRadius = 8
+        button.layer.masksToBounds = true
+        button.setTitleColor(.label, for: .normal)
+        button.setTitleColor(.white, for: .selected)
+        button.backgroundColor = .systemGray4
+        button.addTarget(self, action: #selector(keyTapped(_:)), for: .touchDown)
+        return button
+    }
+
+    @objc private func keyTapped(_ sender: UIButton) {
+        guard let key = Key(rawValue: sender.tag), let terminalView else { return }
+        #if os(iOS)
+        UIDevice.current.playInputClick()
+        #endif
+
+        switch key {
+        case .esc:
+            terminalView.send([0x1b])
+        case .ctrl:
+            terminalView.controlModifier.toggle()
+            syncControlButtonState()
+        case .tab:
+            terminalView.send([0x09])
+        case .slash:
+            terminalView.send(txt: "/")
+        case .left:
+            terminalView.send(EscapeSequences.moveLeftNormal)
+        case .down:
+            terminalView.send(EscapeSequences.moveDownNormal)
+        case .up:
+            terminalView.send(EscapeSequences.moveUpNormal)
+        case .right:
+            terminalView.send(EscapeSequences.moveRightNormal)
+        }
+    }
+
+    @objc private func controlModifierDidReset() {
+        syncControlButtonState()
+    }
+
+    private func syncControlButtonState() {
+        let isSelected = terminalView?.controlModifier ?? false
+        ctrlButton?.isSelected = isSelected
+        ctrlButton?.backgroundColor = isSelected ? .systemBlue : .systemGray4
     }
 }
 
