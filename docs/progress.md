@@ -76,5 +76,20 @@
 ## Phase 18: launchd による常駐化
 - [ ] 未着手
 
-## Phase 19-20: テスト・受け入れ基準チェック
-- [ ] 未着手
+## Phase 19: 異常系テスト
+- [x] テストファイル作成（auth.test.js, connection.test.js, pty.test.js, iOS XCTest 4 ファイル）
+- [ ] iOS テストターゲット追加（21.1 で対応中）
+- [x] テスト実行環境の整備（21.3〜21.5 の修正完了）
+- [ ] 全テスト PASS 確認
+
+## Phase 20: 受け入れ基準チェック
+- [ ] 未着手（実機テスト後に実施）
+
+## Phase 21: Codex レビュー指摘修正（第2回）
+- [ ] 21.1 [Critical] iOS テストターゲットを Xcode プロジェクトに追加
+- [x] 21.2 [High] iOS テストコードの API 不整合を修正
+- [x] 21.3 [High] Node.js auth テストの実装不整合を修正
+- [x] 21.4 [High] MagicDNS 扱いの整合性を修正
+- [x] 21.5 [Medium] Mac 統合テストのハードニング対応
+- [x] 21.6 [Medium] Info.plist から不要な SceneDelegate 参照を削除
+- [x] 21.7 [Medium] progress.md を実態に合わせて更新
