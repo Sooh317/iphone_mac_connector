@@ -6,17 +6,22 @@
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
+    "start-with-token": "bash scripts/start-with-token.sh",
     "generate-token": "node scripts/generate-token.js",
+    "postinstall": "chmod +x node_modules/node-pty/prebuilds/darwin-arm64/spawn-helper 2>/dev/null || true; chmod +x node_modules/node-pty/prebuilds/darwin-x64/spawn-helper 2>/dev/null || true",
     "test": "node --test test/**/*.test.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "engines": {
-    "node": ">=18"
+    "node": ">=18 <24"
   },
   "dependencies": {
     "node-pty": "^1.1.0",
     "ws": "^8.19.0"
+  },
+  "volta": {
+    "node": "22.22.0"
   }
 }

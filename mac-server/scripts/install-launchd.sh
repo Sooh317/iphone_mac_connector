@@ -11,6 +11,7 @@ PLIST_NAME="com.terminal-gateway.plist"
 LAUNCH_AGENTS_DIR="$HOME/Library/LaunchAgents"
 PLIST_DEST="$LAUNCH_AGENTS_DIR/$PLIST_NAME"
 LOGS_DIR="$PROJECT_ROOT/logs"
+NODE_BIN="$(command -v node || true)"
 
 echo "=== Terminal Gateway launchd Installation ==="
 echo ""
@@ -18,6 +19,13 @@ echo ""
 # Check if plist template exists
 if [ ! -f "$PLIST_TEMPLATE" ]; then
     echo "Error: plist template not found at $PLIST_TEMPLATE"
+    exit 1
+fi
+
+# Verify Node.js is available
+if [ -z "$NODE_BIN" ]; then
+    echo "Error: Node.js not found in PATH"
+    echo "Please install Node.js and retry."
     exit 1
 fi
 
@@ -33,15 +41,13 @@ if [ ! -d "$LAUNCH_AGENTS_DIR" ]; then
     mkdir -p "$LAUNCH_AGENTS_DIR"
 fi
 
-# Replace ABSOLUTE_PATH_TO_PROJECT in plist
+# Replace template placeholders in plist
 echo "Configuring plist with project path: $PROJECT_ROOT"
-sed "s|ABSOLUTE_PATH_TO_PROJECT|$PROJECT_ROOT|g" "$PLIST_TEMPLATE" > "$PLIST_DEST"
-
-# Verify Node.js is available
-if ! command -v node &> /dev/null; then
-    echo "Warning: Node.js not found in PATH"
-    echo "Please ensure Node.js is installed and accessible"
-fi
+echo "Using Node.js binary: $NODE_BIN"
+sed \
+  -e "s|ABSOLUTE_PATH_TO_PROJECT|$PROJECT_ROOT|g" \
+  -e "s|ABSOLUTE_PATH_TO_NODE|$NODE_BIN|g" \
+  "$PLIST_TEMPLATE" > "$PLIST_DEST"
 
 # Check if already loaded and unload if necessary
 if launchctl list | grep -q "com.terminal-gateway"; then

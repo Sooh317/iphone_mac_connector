@@ -1,4 +1,179 @@
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
 import pty from 'node-pty';
+import { spawn } from 'child_process';
+
+const REQUIRED_PATH_ENTRIES = [
+  '/opt/homebrew/bin',
+  '/usr/local/bin',
+  '/usr/bin',
+  '/bin',
+  '/usr/sbin',
+  '/sbin'
+];
+
+function assertSupportedNodeRuntime() {
+  const nodeMajor = Number.parseInt(process.versions.node.split('.')[0], 10);
+
+  if (!Number.isNaN(nodeMajor) && nodeMajor < 24) {
+    return;
+  }
+
+  if (process.env.ALLOW_NON_PTY_FALLBACK === 'true') {
+    console.warn(
+      `Unsupported Node.js runtime ${process.version}; continuing in ALLOW_NON_PTY_FALLBACK mode.`
+    );
+    return;
+  }
+
+  throw new Error(
+    `Unsupported Node.js runtime ${process.version}. ` +
+    'Use Node.js 18/20/22 LTS for stable node-pty PTY spawning.'
+  );
+}
+
+function isExecutable(filePath) {
+  if (typeof filePath !== 'string' || filePath.trim() === '') {
+    return false;
+  }
+
+  try {
+    fs.accessSync(filePath, fs.constants.X_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function sanitizeEnv(env = {}) {
+  const cleaned = {};
+
+  for (const [key, value] of Object.entries(env)) {
+    if (value === undefined || value === null) {
+      continue;
+    }
+    cleaned[key] = String(value);
+  }
+
+  return cleaned;
+}
+
+function mergePath(pathValue) {
+  const existing = (pathValue || '')
+    .split(':')
+    .filter(Boolean);
+
+  for (const requiredPath of REQUIRED_PATH_ENTRIES) {
+    if (!existing.includes(requiredPath)) {
+      existing.push(requiredPath);
+    }
+  }
+
+  return existing.join(':');
+}
+
+function resolveShell(shell, env) {
+  const requestedShell = typeof shell === 'string' && shell.trim() !== ''
+    ? shell.trim()
+    : '/bin/zsh';
+  const expandedShell = requestedShell.startsWith('~/')
+    ? path.join(env.HOME || os.homedir(), requestedShell.slice(2))
+    : requestedShell;
+
+  if (expandedShell.includes('/')) {
+    if (!isExecutable(expandedShell)) {
+      throw new Error(`Configured shell is not executable: ${expandedShell}`);
+    }
+    return expandedShell;
+  }
+
+  for (const pathEntry of env.PATH.split(':').filter(Boolean)) {
+    const candidate = path.join(pathEntry, expandedShell);
+    if (isExecutable(candidate)) {
+      return candidate;
+    }
+  }
+
+  throw new Error(`Configured shell "${expandedShell}" was not found in PATH: ${env.PATH}`);
+}
+
+function resolveCwd(cwd, env) {
+  const candidates = [cwd, env.HOME, os.homedir(), process.cwd(), '/']
+    .filter((value) => typeof value === 'string' && value.trim() !== '');
+
+  for (const candidate of candidates) {
+    try {
+      if (fs.statSync(candidate).isDirectory()) {
+        return candidate;
+      }
+    } catch {
+      // Ignore invalid directory and try the next candidate.
+    }
+  }
+
+  return '/';
+}
+
+function preparePtyOptions(shell, options = {}) {
+  const mergedEnv = sanitizeEnv({
+    ...process.env,
+    ...(options.env || {})
+  });
+
+  mergedEnv.HOME = mergedEnv.HOME || os.homedir();
+  mergedEnv.PATH = mergePath(mergedEnv.PATH);
+  mergedEnv.LANG = mergedEnv.LANG || 'en_US.UTF-8';
+  mergedEnv.LC_ALL = mergedEnv.LC_ALL || mergedEnv.LANG;
+  mergedEnv.TERM = mergedEnv.TERM || 'xterm-256color';
+
+  const resolvedShell = resolveShell(shell, mergedEnv);
+  mergedEnv.SHELL = resolvedShell;
+
+  const ptyOptions = {
+    name: 'xterm-256color',
+    cols: 80,
+    rows: 24,
+    ...options,
+    cwd: resolveCwd(options.cwd, mergedEnv),
+    env: mergedEnv
+  };
+
+  return { resolvedShell, ptyOptions };
+}
+
+function createFallbackProcess(shell, options) {
+  const fallbackShell = isExecutable('/bin/bash') ? '/bin/bash' : '/bin/sh';
+  const resolvedShell = isExecutable(shell) ? shell : fallbackShell;
+
+  const child = spawn(resolvedShell, ['-il'], {
+    cwd: options.cwd,
+    env: options.env,
+    stdio: ['pipe', 'pipe', 'pipe']
+  });
+
+  return {
+    pid: child.pid,
+    onData(callback) {
+      child.stdout.on('data', (chunk) => callback(chunk.toString()));
+      child.stderr.on('data', (chunk) => callback(chunk.toString()));
+    },
+    onExit(callback) {
+      child.on('exit', (exitCode, signal) => callback({ exitCode, signal }));
+    },
+    write(data) {
+      if (child.stdin.writable) {
+        child.stdin.write(data);
+      }
+    },
+    resize() {
+      // No-op in fallback mode (no PTY available)
+    },
+    kill() {
+      child.kill('SIGKILL');
+    }
+  };
+}
 
 /**
  * Create a new PTY process
@@ -7,19 +182,22 @@ import pty from 'node-pty';
  * @returns {object} PTY process instance
  */
 export function createPty(shell, options = {}) {
-  const defaultOptions = {
-    name: 'xterm-color',
-    cols: 80,
-    rows: 24,
-    cwd: process.env.HOME,
-    env: process.env
-  };
+  assertSupportedNodeRuntime();
+  const { resolvedShell, ptyOptions } = preparePtyOptions(shell, options);
 
-  const ptyOptions = { ...defaultOptions, ...options };
+  try {
+    return pty.spawn(resolvedShell, [], ptyOptions);
+  } catch (error) {
+    const details = `node-pty spawn failed (${error.message}) shell=${resolvedShell} cwd=${ptyOptions.cwd} PATH=${ptyOptions.env.PATH}`;
+    if (process.env.ALLOW_NON_PTY_FALLBACK === 'true') {
+      console.warn(`${details}; falling back to child_process mode.`);
+      return createFallbackProcess(resolvedShell, ptyOptions);
+    }
 
-  const ptyProcess = pty.spawn(shell, [], ptyOptions);
-
-  return ptyProcess;
+    const wrappedError = new Error(details);
+    wrappedError.code = 'PTY_SPAWN_FAILED';
+    throw wrappedError;
+  }
 }
 
 /**

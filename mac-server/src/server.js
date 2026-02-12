@@ -45,8 +45,8 @@ function handleConnection(ws, request) {
     ptyProcess = createPty(config.shell);
   } catch (error) {
     logger.error(`Failed to create PTY: ${error.message}`);
-    sendMessage(ws, { type: 'error', message: 'Failed to create terminal session' });
-    ws.close();
+    sendMessage(ws, { type: 'error', message: `Failed to create terminal session: ${error.message}` });
+    ws.close(1011, 'PTY spawn failed');
     activeConnections--;
     return;
   }

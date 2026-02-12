@@ -7,7 +7,7 @@
 
     <key>ProgramArguments</key>
     <array>
-        <string>/usr/local/bin/node</string>
+        <string>ABSOLUTE_PATH_TO_NODE</string>
         <string>ABSOLUTE_PATH_TO_PROJECT/mac-server/src/server.js</string>
     </array>
 
@@ -30,8 +30,14 @@
     <dict>
         <key>NODE_ENV</key>
         <string>production</string>
+        <key>SHELL</key>
+        <string>/bin/zsh</string>
+        <key>TERM</key>
+        <string>xterm-256color</string>
+        <key>LANG</key>
+        <string>en_US.UTF-8</string>
         <key>PATH</key>
-        <string>/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
     </dict>
 
     <key>ThrottleInterval</key>
