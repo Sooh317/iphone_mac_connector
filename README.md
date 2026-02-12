@@ -25,7 +25,7 @@ Mac と iPhone の両方に Tailscale をインストールし、同じ Tailnet 
 
 2. Mac サーバーを起動
 ```bash
-cd /Users/sooh/Devs/iphone_mac_connector/mac-server
+cd mac-server
 volta pin node@22
 volta run --node 22 npm install
 volta run --node 22 npm run start-with-token
@@ -33,7 +33,7 @@ volta run --node 22 npm run start-with-token
 
 3. iPhone アプリを実機にインストール
 ```bash
-open /Users/sooh/Devs/iphone_mac_connector/ios-app/IphoneMacConnector/IphoneMacConnector.xcodeproj
+open ios-app/IphoneMacConnector/IphoneMacConnector.xcodeproj
 ```
 Xcode で Team を設定して実機 Run (`⌘R`) します。初回は iPhone 側で開発者証明書を信頼します。
 
@@ -51,7 +51,7 @@ tail -f ~/.terminal-gateway/audit.log
 
 ```bash
 # Node 22 でサーバー起動
-cd /Users/sooh/Devs/iphone_mac_connector/mac-server
+cd mac-server
 volta run --node 22 npm run start-with-token
 
 # ポート占有確認
@@ -67,5 +67,5 @@ tail -f ~/.terminal-gateway/audit.log
 
 ## 参考
 
-- Mac サーバー詳細: `/Users/sooh/Devs/iphone_mac_connector/mac-server/README.md`
-- iOS アプリ詳細: `/Users/sooh/Devs/iphone_mac_connector/ios-app/README.md`
+- Mac サーバー詳細: `mac-server/README.md`
+- iOS アプリ詳細: `ios-app/README.md`
