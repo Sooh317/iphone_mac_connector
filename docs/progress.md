@@ -74,12 +74,15 @@
 - [ ] 17.2 実機テスト（Tailscale 環境）
 
 ## Phase 18: launchd による常駐化
-- [ ] 未着手
+- [x] 18.1 plist ファイルの作成 (com.terminal-gateway.plist)
+- [x] 18.2 インストールスクリプト (install-launchd.sh)
+- [x] 18.3 アンインストールスクリプト (uninstall-launchd.sh)
 
 ## Phase 19: 異常系テスト
 - [x] テストファイル作成（auth.test.js, connection.test.js, pty.test.js, iOS XCTest 4 ファイル）
 - [ ] iOS テストターゲット追加（21.1 で対応中）
 - [x] テスト実行環境の整備（21.3〜21.5 の修正完了）
+- [~] Node.js テスト実行（8/17 テスト成功、残り9テストはタイミング問題）
 - [ ] 全テスト PASS 確認
 
 ## Phase 20: 受け入れ基準チェック
