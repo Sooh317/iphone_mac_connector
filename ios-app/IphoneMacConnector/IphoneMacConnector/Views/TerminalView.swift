@@ -2,6 +2,7 @@ import SwiftUI
 import UIKit
 import SwiftTerm
 import AudioToolbox
+import Foundation
 
 @MainActor
 final class TerminalSession: ObservableObject {
@@ -14,10 +15,12 @@ final class TerminalSession: ObservableObject {
         "\u{001B}[?1047l",
         "\u{001B}[?47l"
     ]
-    private let autoWrapDisableSequence = "\u{001B}[?7l"
     private let forceEnableAutoWrapSequence = "\u{001B}[?7h"
-    // Keep less than the longest marker length so we only detect new markers.
-    private let sequenceDetectionTailLength = 7
+    private static let csiPrivateModeRegex = try! NSRegularExpression(
+        pattern: "(?:\u{001B}\\[|\u{009B})\\?([0-9;]+)([hl])"
+    )
+    // Keep enough tail to detect split private-mode sequences such as ESC[?1;3;4;6l.
+    private let sequenceDetectionTailLength = 24
 
     func attach(terminalView: SwiftTerm.TerminalView) {
         self.terminalView = terminalView
@@ -76,6 +79,8 @@ final class TerminalSession: ObservableObject {
         let boundaryIndex = combined.index(combined.startIndex, offsetBy: recentEscapeSequenceTail.count)
         var detectedAlternateScreenExit = false
         var detectedAutoWrapDisable = false
+        var removalRangesInOutput: [Range<Int>] = []
+        var detectedSessionRestore = false
 
         for marker in alternateScreenExitSequences {
             var searchRangeStart = combined.startIndex
@@ -94,24 +99,89 @@ final class TerminalSession: ObservableObject {
             }
         }
 
-        var searchRangeStart = combined.startIndex
-        while searchRangeStart < combined.endIndex,
-              let range = combined.range(of: autoWrapDisableSequence, range: searchRangeStart..<combined.endIndex) {
-            if range.upperBound > boundaryIndex {
-                detectedAutoWrapDisable = true
-                break
+        let fullRange = NSRange(combined.startIndex..<combined.endIndex, in: combined)
+        let privateModeMatches = Self.csiPrivateModeRegex.matches(in: combined, options: [], range: fullRange)
+        for match in privateModeMatches {
+            guard let sequenceRange = Range(match.range(at: 0), in: combined),
+                  let paramsRange = Range(match.range(at: 1), in: combined),
+                  let commandRange = Range(match.range(at: 2), in: combined) else {
+                continue
+            }
+            guard sequenceRange.upperBound > boundaryIndex else { continue }
+
+            let params = combined[paramsRange].split(separator: ";")
+            let hasMode3 = params.contains { Int($0) == 3 }
+            let hasMode7 = params.contains { Int($0) == 7 }
+            let hasMode1004 = params.contains { Int($0) == 1004 }
+            let hasMode2004 = params.contains { Int($0) == 2004 }
+            let hasMode25 = params.contains { Int($0) == 25 }
+            let command = combined[commandRange].first
+
+            if hasMode3 {
+                let startOffset = max(
+                    0,
+                    combined.distance(from: boundaryIndex, to: sequenceRange.lowerBound)
+                )
+                let endOffset = combined.distance(from: boundaryIndex, to: sequenceRange.upperBound)
+                if endOffset > startOffset {
+                    removalRangesInOutput.append(startOffset..<endOffset)
+                }
             }
 
-            searchRangeStart = combined.index(after: range.lowerBound)
+            if hasMode7 && command == "l" {
+                detectedAutoWrapDisable = true
+            }
+            if (hasMode1004 || hasMode2004) && command == "l" {
+                detectedSessionRestore = true
+            }
+            if hasMode25 && command == "h" {
+                detectedSessionRestore = true
+            }
         }
 
         recentEscapeSequenceTail = String(combined.suffix(sequenceDetectionTailLength))
 
-        if detectedAlternateScreenExit || detectedAutoWrapDisable {
-            return (output + forceEnableAutoWrapSequence, true)
+        var sanitizedOutput = output
+        if !removalRangesInOutput.isEmpty {
+            let mergedRanges = mergeRanges(removalRangesInOutput)
+            for range in mergedRanges.reversed() {
+                let start = sanitizedOutput.index(sanitizedOutput.startIndex, offsetBy: range.lowerBound)
+                let end = sanitizedOutput.index(sanitizedOutput.startIndex, offsetBy: range.upperBound)
+                sanitizedOutput.removeSubrange(start..<end)
+            }
         }
 
-        return (output, false)
+        if detectedAlternateScreenExit || detectedAutoWrapDisable || !removalRangesInOutput.isEmpty || detectedSessionRestore {
+            return (sanitizedOutput + forceEnableAutoWrapSequence, true)
+        }
+
+        return (sanitizedOutput, false)
+    }
+
+    private func mergeRanges(_ ranges: [Range<Int>]) -> [Range<Int>] {
+        guard !ranges.isEmpty else { return [] }
+        let sorted = ranges.sorted { lhs, rhs in
+            if lhs.lowerBound == rhs.lowerBound {
+                return lhs.upperBound < rhs.upperBound
+            }
+            return lhs.lowerBound < rhs.lowerBound
+        }
+
+        var merged: [Range<Int>] = []
+        for range in sorted {
+            guard let last = merged.last else {
+                merged.append(range)
+                continue
+            }
+
+            if range.lowerBound <= last.upperBound {
+                merged[merged.count - 1] = last.lowerBound..<max(last.upperBound, range.upperBound)
+            } else {
+                merged.append(range)
+            }
+        }
+
+        return merged
     }
 }
 
