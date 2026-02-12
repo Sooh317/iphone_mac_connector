@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
-  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
     <key>Label</key>
@@ -9,11 +8,11 @@
     <key>ProgramArguments</key>
     <array>
         <string>/usr/local/bin/node</string>
-        <string>__INSTALL_DIR__/src/server.js</string>
+        <string>ABSOLUTE_PATH_TO_PROJECT/mac-server/src/server.js</string>
     </array>
 
     <key>WorkingDirectory</key>
-    <string>__INSTALL_DIR__</string>
+    <string>ABSOLUTE_PATH_TO_PROJECT/mac-server</string>
 
     <key>RunAtLoad</key>
     <true/>
@@ -22,17 +21,17 @@
     <true/>
 
     <key>StandardOutPath</key>
-    <string>__HOME__/.terminal-gateway/launchd-stdout.log</string>
+    <string>ABSOLUTE_PATH_TO_PROJECT/mac-server/logs/stdout.log</string>
 
     <key>StandardErrorPath</key>
-    <string>__HOME__/.terminal-gateway/launchd-stderr.log</string>
+    <string>ABSOLUTE_PATH_TO_PROJECT/mac-server/logs/stderr.log</string>
 
     <key>EnvironmentVariables</key>
     <dict>
         <key>NODE_ENV</key>
         <string>production</string>
         <key>PATH</key>
-        <string>/usr/local/bin:/usr/bin:/bin</string>
+        <string>/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
     </dict>
 
     <key>ThrottleInterval</key>

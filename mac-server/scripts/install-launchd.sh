@@ -1,53 +1,72 @@
 #!/bin/bash
-set -euo pipefail
+set -e
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-INSTALL_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-PLIST_SRC="$INSTALL_DIR/com.terminal-gateway.plist"
+# Terminal Gateway launchd Installation Script
+# This script installs the terminal-gateway service to run automatically on macOS
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+PLIST_TEMPLATE="$PROJECT_ROOT/com.terminal-gateway.plist"
 PLIST_NAME="com.terminal-gateway.plist"
-PLIST_DEST="$HOME/Library/LaunchAgents/$PLIST_NAME"
-LOG_DIR="$HOME/.terminal-gateway"
-NODE_PATH=$(which node)
+LAUNCH_AGENTS_DIR="$HOME/Library/LaunchAgents"
+PLIST_DEST="$LAUNCH_AGENTS_DIR/$PLIST_NAME"
+LOGS_DIR="$PROJECT_ROOT/logs"
 
-echo "Terminal Gateway - launchd installer"
-echo "====================================="
-echo ""
-echo "Install directory: $INSTALL_DIR"
-echo "Node.js path: $NODE_PATH"
+echo "=== Terminal Gateway launchd Installation ==="
 echo ""
 
-# Ensure log directory exists
-mkdir -p "$LOG_DIR"
-
-# Ensure token exists
-if [ ! -f "$HOME/.terminal-gateway-token" ]; then
-    echo "No token found. Generating..."
-    cd "$INSTALL_DIR" && node scripts/generate-token.js
-    echo ""
+# Check if plist template exists
+if [ ! -f "$PLIST_TEMPLATE" ]; then
+    echo "Error: plist template not found at $PLIST_TEMPLATE"
+    exit 1
 fi
 
-# Create plist from template
-mkdir -p "$HOME/Library/LaunchAgents"
+# Create logs directory
+if [ ! -d "$LOGS_DIR" ]; then
+    echo "Creating logs directory..."
+    mkdir -p "$LOGS_DIR"
+fi
 
-sed -e "s|__INSTALL_DIR__|$INSTALL_DIR|g" \
-    -e "s|__HOME__|$HOME|g" \
-    -e "s|/usr/local/bin/node|$NODE_PATH|g" \
-    "$PLIST_SRC" > "$PLIST_DEST"
+# Create LaunchAgents directory if it doesn't exist
+if [ ! -d "$LAUNCH_AGENTS_DIR" ]; then
+    echo "Creating LaunchAgents directory..."
+    mkdir -p "$LAUNCH_AGENTS_DIR"
+fi
 
-echo "Plist installed to: $PLIST_DEST"
+# Replace ABSOLUTE_PATH_TO_PROJECT in plist
+echo "Configuring plist with project path: $PROJECT_ROOT"
+sed "s|ABSOLUTE_PATH_TO_PROJECT|$PROJECT_ROOT|g" "$PLIST_TEMPLATE" > "$PLIST_DEST"
 
-# Unload existing service if present (idempotent)
-echo "Checking for existing service..."
-launchctl bootout "gui/$(id -u)" "$PLIST_DEST" 2>/dev/null || true
-launchctl unload "$PLIST_DEST" 2>/dev/null || true
+# Verify Node.js is available
+if ! command -v node &> /dev/null; then
+    echo "Warning: Node.js not found in PATH"
+    echo "Please ensure Node.js is installed and accessible"
+fi
 
-# Load the agent using bootstrap (modern approach)
+# Check if already loaded and unload if necessary
+if launchctl list | grep -q "com.terminal-gateway"; then
+    echo "Service already loaded. Unloading..."
+    launchctl unload "$PLIST_DEST" 2>/dev/null || true
+fi
+
+# Load the service
 echo "Loading service..."
-launchctl bootstrap "gui/$(id -u)" "$PLIST_DEST"
-launchctl enable "gui/$(id -u)/com.terminal-gateway"
-launchctl kickstart -k "gui/$(id -u)/com.terminal-gateway"
+launchctl load "$PLIST_DEST"
 
 echo ""
-echo "Terminal Gateway service installed and started."
-echo "Check status: launchctl list | grep terminal-gateway"
-echo "View logs: tail -f $LOG_DIR/launchd-stdout.log"
+echo "✅ Installation complete!"
+echo ""
+echo "Service: com.terminal-gateway"
+echo "Plist location: $PLIST_DEST"
+echo "Logs directory: $LOGS_DIR"
+echo ""
+echo "The service will start automatically on login."
+echo ""
+echo "Useful commands:"
+echo "  Check status:    launchctl list | grep com.terminal-gateway"
+echo "  View stdout:     tail -f $LOGS_DIR/stdout.log"
+echo "  View stderr:     tail -f $LOGS_DIR/stderr.log"
+echo "  View audit log:  tail -f ~/.terminal-gateway/audit.log"
+echo "  Restart service: launchctl kickstart -k gui/$(id -u)/com.terminal-gateway"
+echo "  Uninstall:       $SCRIPT_DIR/uninstall-launchd.sh"
+echo ""
