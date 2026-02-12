@@ -1,0 +1,25 @@
+services:
+  terminal-gateway:
+    build:
+      context: ./mac-server
+      dockerfile: Dockerfile
+    container_name: terminal-gateway
+    ports:
+      - "8765:8765"
+    volumes:
+      # Mount token and logs directory
+      - gateway-data:/data
+      # Mount config file
+      - ./mac-server/config.json:/app/config.json:ro
+    environment:
+      - NODE_ENV=production
+    restart: unless-stopped
+    networks:
+      - gateway-network
+
+networks:
+  gateway-network:
+    driver: bridge
+
+volumes:
+  gateway-data:
