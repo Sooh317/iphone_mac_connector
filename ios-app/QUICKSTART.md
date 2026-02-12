@@ -251,7 +251,7 @@ After successful connection:
 
 ### Check These First:
 - README.md - Full documentation
-- IMPLEMENTATION_SUMMARY.md - Technical details
+- ios-app/README.md - iOS app details
 - Xcode console - Debug logs
 
 ### Common Solutions:
