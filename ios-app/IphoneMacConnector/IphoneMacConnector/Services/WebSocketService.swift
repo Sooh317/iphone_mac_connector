@@ -40,6 +40,10 @@ class WebSocketService: NSObject, ObservableObject {
     private var shouldReconnect = false
     private var reconnectAttempts = 0
     private let maxReconnectAttempts = 5
+    // Ignore transient tiny sizes reported during initial layout.
+    private let minimumTerminalCols = 30
+    private let minimumTerminalRows = 10
+    private var lastKnownTerminalSize: (cols: Int, rows: Int)?
     private var lastServerHeartbeat: Date = Date()
     private var heartbeatTimeoutTimer: Timer?
     private var isReconnecting = false
@@ -160,8 +164,20 @@ class WebSocketService: NSObject, ObservableObject {
 
     /// Send terminal resize message
     func sendResize(cols: Int, rows: Int) {
+        guard cols >= minimumTerminalCols, rows >= minimumTerminalRows else {
+            print("WebSocketService: Ignoring resize with invalid size \(cols)x\(rows)")
+            return
+        }
+
+        lastKnownTerminalSize = (cols, rows)
         let message = WSMessage(type: .resize, cols: cols, rows: rows)
         sendMessage(message)
+    }
+
+    /// Re-send the latest valid terminal size to recover PTY state.
+    func resendLastResize() {
+        guard let size = lastKnownTerminalSize else { return }
+        sendResize(cols: size.cols, rows: size.rows)
     }
 
     /// Send heartbeat message

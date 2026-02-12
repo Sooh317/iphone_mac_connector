@@ -23,6 +23,11 @@ struct ContentView: View {
                         terminalSession: terminalSession,
                         onInput: { data in
                             webSocketService.sendCommand(data)
+                            if data.contains("\n") || data.contains("\r") {
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
+                                    webSocketService.resendLastResize()
+                                }
+                            }
                         },
                         onResize: { cols, rows in
                             webSocketService.sendResize(cols: cols, rows: rows)
@@ -146,8 +151,13 @@ struct ContentView: View {
     }
 
     private func setupWebSocketCallbacks() {
-        webSocketService.onOutputReceived = { output in
-            terminalSession.feed(output: output)
+        let service = webSocketService
+        let session = terminalSession
+
+        webSocketService.onOutputReceived = { [weak service] output in
+            session.feed(output: output) {
+                service?.resendLastResize()
+            }
         }
 
         webSocketService.onErrorReceived = { error in

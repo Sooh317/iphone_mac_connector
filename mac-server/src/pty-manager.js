@@ -12,6 +12,8 @@ const REQUIRED_PATH_ENTRIES = [
   '/usr/sbin',
   '/sbin'
 ];
+const MIN_TERMINAL_COLS = 30;
+const MIN_TERMINAL_ROWS = 10;
 
 function assertSupportedNodeRuntime() {
   const nodeMajor = Number.parseInt(process.versions.node.split('.')[0], 10);
@@ -126,6 +128,10 @@ function preparePtyOptions(shell, options = {}) {
   mergedEnv.LANG = mergedEnv.LANG || 'en_US.UTF-8';
   mergedEnv.LC_ALL = mergedEnv.LC_ALL || mergedEnv.LANG;
   mergedEnv.TERM = mergedEnv.TERM || 'xterm-256color';
+  // Prevent Apple shell-session restore noise in non-Terminal.app PTY sessions.
+  mergedEnv.SHELL_SESSIONS_DISABLE = mergedEnv.SHELL_SESSIONS_DISABLE || '1';
+  // Avoid zsh prompt end-of-line marker ("%") when previous output had no trailing newline.
+  mergedEnv.PROMPT_EOL_MARK = mergedEnv.PROMPT_EOL_MARK ?? '';
 
   const resolvedShell = resolveShell(shell, mergedEnv);
   mergedEnv.SHELL = resolvedShell;
@@ -236,7 +242,13 @@ export function handleInput(ptyProcess, data) {
  * @param {number} rows - Number of rows
  */
 export function handleResize(ptyProcess, cols, rows) {
-  if (ptyProcess && typeof cols === 'number' && typeof rows === 'number') {
+  if (
+    ptyProcess &&
+    typeof cols === 'number' &&
+    typeof rows === 'number' &&
+    cols >= MIN_TERMINAL_COLS &&
+    rows >= MIN_TERMINAL_ROWS
+  ) {
     ptyProcess.resize(cols, rows);
   }
 }

@@ -163,6 +163,46 @@ test('PTY and Message Handling', async (t) => {
     });
   });
 
+  await t.test('should ignore tiny resize messages', async () => {
+    const ws = await new Promise((resolve, reject) => {
+      const socket = new WebSocket(`ws://${TEST_HOST}:${TEST_PORT}/terminal`, {
+        headers: { Authorization: `Bearer ${TEST_TOKEN}` }
+      });
+      socket.on('open', () => resolve(socket));
+      socket.on('error', reject);
+      setTimeout(() => reject(new Error('Connection timeout')), 3000);
+    });
+
+    // Send invalid tiny size; server should ignore instead of breaking PTY.
+    ws.send(JSON.stringify({ type: 'resize', cols: 1, rows: 1 }));
+    await new Promise(resolve => setTimeout(resolve, 200));
+
+    ws.send(JSON.stringify({ type: 'input', data: 'echo "tiny-resize-ok"\n' }));
+
+    const outputPromise = new Promise((resolve) => {
+      ws.on('message', (data) => {
+        try {
+          const message = JSON.parse(data);
+          if (message.type === 'output' && message.data && message.data.includes('tiny-resize-ok')) {
+            resolve(message);
+          }
+        } catch {
+          // Ignore parse errors
+        }
+      });
+      setTimeout(() => resolve(null), 5000);
+    });
+
+    const output = await outputPromise;
+    assert.ok(output !== null, 'PTY should still respond after tiny resize');
+
+    ws.close();
+    await new Promise(resolve => {
+      ws.on('close', resolve);
+      setTimeout(resolve, 1000);
+    });
+  });
+
   await t.test('should handle heartbeat messages', async () => {
     const ws = await new Promise((resolve, reject) => {
       const socket = new WebSocket(`ws://${TEST_HOST}:${TEST_PORT}/terminal`, {

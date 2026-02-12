@@ -110,6 +110,14 @@ final class WebSocketServiceTests: XCTestCase {
         XCTAssertEqual(service.connectionState.description, "Disconnected")
     }
 
+    func testSendResize_InvalidSize_WhenDisconnected() {
+        // Should ignore invalid tiny resize values and not crash
+        service.sendResize(cols: 1, rows: 1)
+
+        // Verify still disconnected
+        XCTAssertEqual(service.connectionState.description, "Disconnected")
+    }
+
     // MARK: - Message Decoding Tests
 
     func testReceiveMessage_OutputCallback() {

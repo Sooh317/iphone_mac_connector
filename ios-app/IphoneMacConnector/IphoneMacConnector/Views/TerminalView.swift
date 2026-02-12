@@ -8,6 +8,16 @@ final class TerminalSession: ObservableObject {
     private weak var terminalView: SwiftTerm.TerminalView?
     private var pendingOutput: [String] = []
     private let maxPendingChunks = 2000
+    private var recentEscapeSequenceTail = ""
+    private let alternateScreenExitSequences = [
+        "\u{001B}[?1049l",
+        "\u{001B}[?1047l",
+        "\u{001B}[?47l"
+    ]
+    private let autoWrapDisableSequence = "\u{001B}[?7l"
+    private let forceEnableAutoWrapSequence = "\u{001B}[?7h"
+    // Keep less than the longest marker length so we only detect new markers.
+    private let sequenceDetectionTailLength = 7
 
     func attach(terminalView: SwiftTerm.TerminalView) {
         self.terminalView = terminalView
@@ -21,18 +31,25 @@ final class TerminalSession: ObservableObject {
         }
     }
 
-    func feed(output: String) {
+    func feed(output: String, onTerminalStateRecoveryNeeded: (() -> Void)? = nil) {
         guard !output.isEmpty else { return }
+        let (sanitizedOutput, requiresRecovery) = sanitizeOutput(output)
 
         guard let terminalView else {
-            pendingOutput.append(output)
+            pendingOutput.append(sanitizedOutput)
             if pendingOutput.count > maxPendingChunks {
                 pendingOutput.removeFirst(pendingOutput.count - maxPendingChunks)
+            }
+            if requiresRecovery {
+                onTerminalStateRecoveryNeeded?()
             }
             return
         }
 
-        terminalView.feed(text: output)
+        terminalView.feed(text: sanitizedOutput)
+        if requiresRecovery {
+            onTerminalStateRecoveryNeeded?()
+        }
     }
 
     func clearScreen() {
@@ -53,6 +70,49 @@ final class TerminalSession: ObservableObject {
         }
         pendingOutput.removeAll(keepingCapacity: true)
     }
+
+    private func sanitizeOutput(_ output: String) -> (output: String, requiresRecovery: Bool) {
+        let combined = recentEscapeSequenceTail + output
+        let boundaryIndex = combined.index(combined.startIndex, offsetBy: recentEscapeSequenceTail.count)
+        var detectedAlternateScreenExit = false
+        var detectedAutoWrapDisable = false
+
+        for marker in alternateScreenExitSequences {
+            var searchRangeStart = combined.startIndex
+            while searchRangeStart < combined.endIndex,
+                  let range = combined.range(of: marker, range: searchRangeStart..<combined.endIndex) {
+                if range.upperBound > boundaryIndex {
+                    detectedAlternateScreenExit = true
+                    break
+                }
+
+                searchRangeStart = combined.index(after: range.lowerBound)
+            }
+
+            if detectedAlternateScreenExit {
+                break
+            }
+        }
+
+        var searchRangeStart = combined.startIndex
+        while searchRangeStart < combined.endIndex,
+              let range = combined.range(of: autoWrapDisableSequence, range: searchRangeStart..<combined.endIndex) {
+            if range.upperBound > boundaryIndex {
+                detectedAutoWrapDisable = true
+                break
+            }
+
+            searchRangeStart = combined.index(after: range.lowerBound)
+        }
+
+        recentEscapeSequenceTail = String(combined.suffix(sequenceDetectionTailLength))
+
+        if detectedAlternateScreenExit || detectedAutoWrapDisable {
+            return (output + forceEnableAutoWrapSequence, true)
+        }
+
+        return (output, false)
+    }
 }
 
 private final class NativeTerminalView: SwiftTerm.TerminalView {
@@ -68,6 +128,8 @@ private final class NativeTerminalView: SwiftTerm.TerminalView {
 
     private func commonSetup() {
         font = UIFont.monospacedSystemFont(ofSize: 14, weight: .regular)
+        backgroundColor = .black
+        isOpaque = true
         nativeBackgroundColor = .black
         nativeForegroundColor = .green
         caretColor = .white
@@ -134,6 +196,10 @@ private struct TerminalContainerView: UIViewRepresentable {
         private let terminalSession: TerminalSession
         private let onInput: (String) -> Void
         private let onResize: ((Int, Int) -> Void)?
+        private var pendingResizeWorkItem: DispatchWorkItem?
+        private let resizeDebounceInterval: TimeInterval = 0.12
+        private let minimumTerminalCols = 30
+        private let minimumTerminalRows = 10
 
         init(
             terminalSession: TerminalSession,
@@ -156,7 +222,16 @@ private struct TerminalContainerView: UIViewRepresentable {
         }
 
         func sizeChanged(source: SwiftTerm.TerminalView, newCols: Int, newRows: Int) {
-            onResize?(newCols, newRows)
+            guard newCols >= minimumTerminalCols, newRows >= minimumTerminalRows else {
+                return
+            }
+
+            pendingResizeWorkItem?.cancel()
+            let workItem = DispatchWorkItem { [weak self] in
+                self?.onResize?(newCols, newRows)
+            }
+            pendingResizeWorkItem = workItem
+            DispatchQueue.main.asyncAfter(deadline: .now() + resizeDebounceInterval, execute: workItem)
         }
 
         func setTerminalTitle(source: SwiftTerm.TerminalView, title: String) {
