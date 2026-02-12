@@ -21,41 +21,6 @@ function sendMessage(ws, message) {
 }
 
 /**
- * Handle incoming WebSocket messages
- */
-function handleMessage(ws, ptyProcess, data) {
-  try {
-    const message = JSON.parse(data);
-
-    switch (message.type) {
-      case 'input':
-        if (message.data) {
-          handleInput(ptyProcess, message.data);
-        }
-        break;
-
-      case 'resize':
-        if (message.cols && message.rows) {
-          handleResize(ptyProcess, message.cols, message.rows);
-        }
-        break;
-
-      case 'heartbeat':
-        // Respond to heartbeat with heartbeat
-        sendMessage(ws, { type: 'heartbeat' });
-        break;
-
-      default:
-        logger.warn(`Unknown message type: ${message.type}`);
-        sendMessage(ws, { type: 'error', message: `Unknown message type: ${message.type}` });
-    }
-  } catch (error) {
-    logger.error(`Error handling message: ${error.message}`);
-    sendMessage(ws, { type: 'error', message: 'Failed to process message' });
-  }
-}
-
-/**
  * Handle WebSocket connection
  */
 function handleConnection(ws, request) {
@@ -86,9 +51,58 @@ function handleConnection(ws, request) {
   // Attach PTY to WebSocket
   attachPtyToWebSocket(ptyProcess, ws, (msg) => sendMessage(ws, msg));
 
+  // --- Heartbeat management ---
+  let lastHeartbeatReceived = Date.now();
+
+  // Server-initiated heartbeat: send every 30 seconds
+  const heartbeatInterval = setInterval(() => {
+    sendMessage(ws, { type: 'heartbeat', ts: Math.floor(Date.now() / 1000) });
+  }, 30000);
+
+  // Timeout check: disconnect if no heartbeat received for 90 seconds
+  const timeoutCheck = setInterval(() => {
+    const elapsed = Date.now() - lastHeartbeatReceived;
+    if (elapsed > 90000) {
+      logger.warn(`Heartbeat timeout for ${clientIp} (${elapsed}ms)`);
+      clearInterval(heartbeatInterval);
+      clearInterval(timeoutCheck);
+      ws.close(1001, 'Heartbeat timeout');
+    }
+  }, 15000); // Check every 15 seconds
+
   // Handle incoming messages
   ws.on('message', (data) => {
-    handleMessage(ws, ptyProcess, data);
+    try {
+      const message = JSON.parse(data);
+
+      switch (message.type) {
+        case 'input':
+          if (message.data) {
+            handleInput(ptyProcess, message.data);
+          }
+          break;
+
+        case 'resize':
+          if (message.cols && message.rows) {
+            handleResize(ptyProcess, message.cols, message.rows);
+          }
+          break;
+
+        case 'heartbeat':
+          // Update last received timestamp
+          lastHeartbeatReceived = Date.now();
+          // Respond with heartbeat (including ts in seconds)
+          sendMessage(ws, { type: 'heartbeat', ts: Math.floor(Date.now() / 1000) });
+          break;
+
+        default:
+          logger.warn(`Unknown message type: ${message.type}`);
+          sendMessage(ws, { type: 'error', message: `Unknown message type: ${message.type}` });
+      }
+    } catch (error) {
+      logger.error(`Error handling message: ${error.message}`);
+      sendMessage(ws, { type: 'error', message: 'Failed to process message' });
+    }
   });
 
   // Handle WebSocket errors
@@ -98,6 +112,8 @@ function handleConnection(ws, request) {
 
   // Handle disconnection
   ws.on('close', () => {
+    clearInterval(heartbeatInterval);
+    clearInterval(timeoutCheck);
     activeConnections--;
     logger.logDisconnection(clientIp, 'client closed connection');
     killPty(ptyProcess);

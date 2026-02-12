@@ -22,7 +22,7 @@ struct WSMessage: Codable {
         self.message = message
         self.cols = cols
         self.rows = rows
-        self.ts = type == .heartbeat ? Int64(Date().timeIntervalSince1970 * 1000) : nil
+        self.ts = type == .heartbeat ? Int64(Date().timeIntervalSince1970) : nil
     }
 
     /// Encodes the message to JSON string for sending over WebSocket

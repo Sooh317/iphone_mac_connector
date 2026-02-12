@@ -67,19 +67,30 @@ function main() {
 
     // Write token to file with 0600 permissions (read/write for owner only)
     fs.writeFileSync(tokenFilePath, token, { mode: 0o600 });
+    // Explicitly set permissions to ensure 0600 even on existing files
+    fs.chmodSync(tokenFilePath, 0o600);
 
     console.log('');
     console.log('Token generated successfully!');
     console.log('');
     console.log('Token file:', tokenFilePath);
     console.log('');
-    console.log('Your authentication token (save this, it will not be shown again):');
-    console.log('');
-    console.log(`  ${token}`);
-    console.log('');
-    console.log('Use this token in the Authorization header:');
-    console.log(`  Authorization: Bearer ${token}`);
-    console.log('');
+
+    // Only show token in interactive terminal (not in logs)
+    if (process.stdout.isTTY) {
+      console.log('Your authentication token (save this, it will not be shown again):');
+      console.log('');
+      console.log(`  ${token}`);
+      console.log('');
+      console.log('Use this token in the Authorization header:');
+      console.log(`  Authorization: Bearer ${token}`);
+      console.log('');
+    } else {
+      console.log('Token has been saved securely.');
+      console.log('To view the token, use:');
+      console.log(`  cat ${tokenFilePath}`);
+      console.log('');
+    }
 
   } catch (error) {
     console.error('Error generating token:', error.message);
