@@ -1,7 +1,7 @@
 # iPhone Mac Connector
 
 iPhone から Mac のターミナルに Tailscale 経由で接続するためのプロジェクトです。  
-Docker は使わず、Mac 上で `mac-server` を直接起動する前提です。
+Mac 上で `mac-server` を直接起動する前提です。
 
 ## 前提環境
 
