@@ -4,6 +4,9 @@ node_modules/
 config.json
 .env
 ~/.terminal-gateway-token
+.claude/
+.xcode-derived/
+/package-lock.json
 
 # iOS
 ios-app/IphoneMacConnector/IphoneMacConnector.xcodeproj/xcuserdata/
