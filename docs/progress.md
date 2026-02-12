@@ -34,7 +34,7 @@
 
 ## Phase 8: Mac Gateway — npm scripts と起動確認
 - [x] 8.1 npm scripts (start, generate-token)
-- [ ] 8.2 手動起動テスト
+- [x] 8.2 手動起動テスト (Docker 環境で確認完了)
 
 ## Phase 9: iOS クライアント — Xcode プロジェクト作成
 - [x] 9.1 プロジェクト初期化 (SwiftUI App, iOS 16.0+)
