@@ -18,10 +18,10 @@
 		A1000001000000000000017 /* ConnectionSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000001000000000000018 /* ConnectionSettingsView.swift */; };
 		A1000001000000000000019 /* TerminalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000001000000000000020 /* TerminalView.swift */; };
 		A1000001000000000000021 /* CommandInputView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000001000000000000022 /* CommandInputView.swift */; };
+		A1000001000000000000042 /* SwiftTerm in Frameworks */ = {isa = PBXBuildFile; productRef = A1000001000000000000044 /* SwiftTerm */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		A1000001000000000000023 /* IphoneMacConnector.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = IphoneMacConnector.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A1000001000000000000002 /* IphoneMacConnectorApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IphoneMacConnectorApp.swift; sourceTree = "<group>"; };
 		A1000001000000000000004 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		A1000001000000000000006 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -33,6 +33,7 @@
 		A1000001000000000000018 /* ConnectionSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionSettingsView.swift; sourceTree = "<group>"; };
 		A1000001000000000000020 /* TerminalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalView.swift; sourceTree = "<group>"; };
 		A1000001000000000000022 /* CommandInputView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandInputView.swift; sourceTree = "<group>"; };
+		A1000001000000000000023 /* IphoneMacConnector.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = IphoneMacConnector.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A1000001000000000000024 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -41,6 +42,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A1000001000000000000042 /* SwiftTerm in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -55,14 +57,6 @@
 			);
 			sourceTree = "<group>";
 		};
-		A1000001000000000000028 /* Products */ = {
-			isa = PBXGroup;
-			children = (
-				A1000001000000000000023 /* IphoneMacConnector.app */,
-			);
-			name = Products;
-			sourceTree = "<group>";
-		};
 		A1000001000000000000027 /* IphoneMacConnector */ = {
 			isa = PBXGroup;
 			children = (
@@ -74,6 +68,14 @@
 				A1000001000000000000006 /* Assets.xcassets */,
 			);
 			path = IphoneMacConnector;
+			sourceTree = "<group>";
+		};
+		A1000001000000000000028 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				A1000001000000000000023 /* IphoneMacConnector.app */,
+			);
+			name = Products;
 			sourceTree = "<group>";
 		};
 		A1000001000000000000029 /* Models */ = {
@@ -122,6 +124,9 @@
 			dependencies = (
 			);
 			name = IphoneMacConnector;
+			packageProductDependencies = (
+				A1000001000000000000044 /* SwiftTerm */,
+			);
 			productName = IphoneMacConnector;
 			productReference = A1000001000000000000023 /* IphoneMacConnector.app */;
 			productType = "com.apple.product-type.application";
@@ -150,6 +155,9 @@
 				Base,
 			);
 			mainGroup = A1000001000000000000026;
+			packageReferences = (
+				A1000001000000000000043 /* XCRemoteSwiftPackageReference "SwiftTerm" */,
+			);
 			productRefGroup = A1000001000000000000028 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -189,6 +197,25 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		A1000001000000000000043 /* XCRemoteSwiftPackageReference "SwiftTerm" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/migueldeicaza/SwiftTerm.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.0.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		A1000001000000000000044 /* SwiftTerm */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A1000001000000000000043 /* XCRemoteSwiftPackageReference "SwiftTerm" */;
+			productName = SwiftTerm;
+		};
+/* End XCSwiftPackageProductDependency section */
 
 /* Begin XCBuildConfiguration section */
 		A1000001000000000000038 /* Debug */ = {
@@ -375,20 +402,20 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		A1000001000000000000037 /* Build configuration list for PBXProject "IphoneMacConnector" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				A1000001000000000000038 /* Debug */,
-				A1000001000000000000039 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
 		A1000001000000000000033 /* Build configuration list for PBXNativeTarget "IphoneMacConnector" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				A1000001000000000000040 /* Debug */,
 				A1000001000000000000041 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A1000001000000000000037 /* Build configuration list for PBXProject "IphoneMacConnector" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A1000001000000000000038 /* Debug */,
+				A1000001000000000000039 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

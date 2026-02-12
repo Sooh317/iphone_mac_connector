@@ -2,7 +2,7 @@ import SwiftUI
 
 struct ContentView: View {
     @StateObject private var webSocketService = WebSocketService()
-    @StateObject private var outputManager = TerminalOutputManager()
+    @StateObject private var terminalSession = TerminalSession()
 
     @State private var config = ConnectionConfig.load()
     @State private var showingSettings = false
@@ -19,9 +19,15 @@ struct ContentView: View {
                     statusBar
 
                     // Terminal output
-                    TerminalView(outputManager: outputManager) { cols, rows in
-                        webSocketService.sendResize(cols: cols, rows: rows)
-                    }
+                    TerminalView(
+                        terminalSession: terminalSession,
+                        onInput: { data in
+                            webSocketService.sendCommand(data)
+                        },
+                        onResize: { cols, rows in
+                            webSocketService.sendResize(cols: cols, rows: rows)
+                        }
+                    )
 
                     // Command input
                     CommandInputView(isConnected: .constant(webSocketService.connectionState.isConnected)) { command in
@@ -145,11 +151,11 @@ struct ContentView: View {
 
     private func setupWebSocketCallbacks() {
         webSocketService.onOutputReceived = { output in
-            outputManager.appendOutput(output)
+            terminalSession.feed(output: output)
         }
 
         webSocketService.onErrorReceived = { error in
-            outputManager.appendOutput("\n[ERROR] \(error)\n")
+            terminalSession.feed(output: "\r\n[ERROR] \(error)\r\n")
         }
 
         webSocketService.onMessageReceived = { message in
@@ -164,7 +170,7 @@ struct ContentView: View {
             return
         }
 
-        outputManager.clear()
+        terminalSession.resetTerminal()
         webSocketService.connect(config: config)
     }
 
@@ -173,11 +179,11 @@ struct ContentView: View {
     }
 
     private func clearOutput() {
-        outputManager.clear()
+        terminalSession.clearScreen()
     }
 
     private func createNewTerminalSession() {
-        outputManager.clear()
+        terminalSession.resetTerminal()
         webSocketService.restartTerminalSession()
     }
 

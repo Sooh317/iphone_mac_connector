@@ -1,124 +1,211 @@
 import SwiftUI
 import UIKit
+import SwiftTerm
+import AudioToolbox
 
-struct TerminalView: View {
-    @ObservedObject var outputManager: TerminalOutputManager
-    var onResize: ((Int, Int) -> Void)? = nil
+@MainActor
+final class TerminalSession: ObservableObject {
+    private weak var terminalView: SwiftTerm.TerminalView?
+    private var pendingOutput: [String] = []
+    private let maxPendingChunks = 2000
 
-    @State private var scrollProxy: ScrollViewProxy?
-    @State private var shouldAutoScroll = true
-    @State private var currentCols: Int = 80
-    @State private var currentRows: Int = 24
+    func attach(terminalView: SwiftTerm.TerminalView) {
+        self.terminalView = terminalView
+        flushPendingOutput()
+        _ = terminalView.becomeFirstResponder()
+    }
 
-    var body: some View {
-        GeometryReader { geometry in
-            ZStack {
-                Color.black
-                    .ignoresSafeArea()
-
-                if outputManager.outputText.isEmpty {
-                VStack {
-                    Image(systemName: "terminal")
-                        .font(.system(size: 60))
-                        .foregroundColor(.green.opacity(0.3))
-                    Text("Terminal Output")
-                        .font(.title2)
-                        .foregroundColor(.green.opacity(0.5))
-                    Text("Connected - Waiting for output...")
-                        .font(.caption)
-                        .foregroundColor(.green.opacity(0.4))
-                }
-            } else {
-                ScrollViewReader { proxy in
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: 0) {
-                            Text(outputManager.attributedOutput)
-                                .font(.system(.body, design: .monospaced))
-                                .textSelection(.enabled)
-                                .lineLimit(nil)
-                                .padding(8)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .id("terminalBottom")
-                        }
-                    }
-                    .onAppear {
-                        scrollProxy = proxy
-                    }
-                    .onChange(of: outputManager.outputText) { _ in
-                        if shouldAutoScroll {
-                            scrollToBottom(proxy: proxy)
-                        }
-                    }
-                }
-            }
-
-                // Auto-scroll toggle button
-                VStack {
-                    Spacer()
-                    HStack {
-                        Spacer()
-                        Button(action: {
-                            shouldAutoScroll.toggle()
-                            if shouldAutoScroll, let proxy = scrollProxy {
-                                scrollToBottom(proxy: proxy)
-                            }
-                        }) {
-                            Image(systemName: shouldAutoScroll ? "arrow.down.circle.fill" : "arrow.down.circle")
-                                .font(.title2)
-                                .foregroundColor(shouldAutoScroll ? .green : .gray)
-                                .padding(12)
-                                .background(Color.black.opacity(0.7))
-                                .clipShape(Circle())
-                        }
-                        .padding()
-                    }
-                }
-            }
-            .onAppear {
-                calculateTerminalSize(from: geometry.size)
-            }
-            .onChange(of: geometry.size) { newSize in
-                calculateTerminalSize(from: newSize)
-            }
+    func detach(terminalView: SwiftTerm.TerminalView) {
+        if self.terminalView === terminalView {
+            self.terminalView = nil
         }
     }
 
-    private func scrollToBottom(proxy: ScrollViewProxy) {
-        withAnimation {
-            proxy.scrollTo("terminalBottom", anchor: .bottom)
-        }
-    }
+    func feed(output: String) {
+        guard !output.isEmpty else { return }
 
-    private func calculateTerminalSize(from size: CGSize) {
-        let font = UIFont.monospacedSystemFont(
-            ofSize: UIFont.preferredFont(forTextStyle: .body).pointSize,
-            weight: .regular
-        )
-        let characterSize = ("W" as NSString).size(withAttributes: [.font: font])
-        let charWidth = max(characterSize.width, 1.0)
-        let charHeight = max(characterSize.height, 1.0)
-        let horizontalPadding: CGFloat = 16.0
-        let verticalPadding: CGFloat = 16.0
-
-        let availableWidth = max(0, size.width - horizontalPadding)
-        let availableHeight = max(0, size.height - verticalPadding)
-
-        let newCols = max(20, Int(floor(availableWidth / charWidth)))
-        let newRows = max(5, Int(floor(availableHeight / charHeight)))
-
-        if newCols != currentCols {
-            currentCols = newCols
-            currentRows = newRows
-            onResize?(newCols, newRows)
+        guard let terminalView else {
+            pendingOutput.append(output)
+            if pendingOutput.count > maxPendingChunks {
+                pendingOutput.removeFirst(pendingOutput.count - maxPendingChunks)
+            }
             return
         }
 
-        currentRows = newRows
+        terminalView.feed(text: output)
+    }
+
+    func clearScreen() {
+        pendingOutput.removeAll(keepingCapacity: true)
+        terminalView?.feed(text: "\u{001B}[2J\u{001B}[3J\u{001B}[H")
+    }
+
+    func resetTerminal() {
+        pendingOutput.removeAll(keepingCapacity: true)
+        terminalView?.feed(text: "\u{001B}c")
+    }
+
+    private func flushPendingOutput() {
+        guard let terminalView, !pendingOutput.isEmpty else { return }
+
+        for chunk in pendingOutput {
+            terminalView.feed(text: chunk)
+        }
+        pendingOutput.removeAll(keepingCapacity: true)
+    }
+}
+
+private final class NativeTerminalView: SwiftTerm.TerminalView {
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        commonSetup()
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        commonSetup()
+    }
+
+    private func commonSetup() {
+        font = UIFont.monospacedSystemFont(ofSize: 14, weight: .regular)
+        nativeBackgroundColor = .black
+        nativeForegroundColor = .green
+        caretColor = .white
+        optionAsMetaKey = true
+        allowMouseReporting = true
+        keyboardAppearance = .dark
+        autocorrectionType = .no
+        autocapitalizationType = .none
+    }
+
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        if window != nil {
+            _ = becomeFirstResponder()
+        }
+    }
+}
+
+struct TerminalView: View {
+    @ObservedObject var terminalSession: TerminalSession
+    var onInput: (String) -> Void
+    var onResize: ((Int, Int) -> Void)? = nil
+
+    var body: some View {
+        TerminalContainerView(
+            terminalSession: terminalSession,
+            onInput: onInput,
+            onResize: onResize
+        )
+        .background(Color.black)
+        .ignoresSafeArea(edges: .horizontal)
+    }
+}
+
+private struct TerminalContainerView: UIViewRepresentable {
+    var terminalSession: TerminalSession
+    var onInput: (String) -> Void
+    var onResize: ((Int, Int) -> Void)?
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(
+            terminalSession: terminalSession,
+            onInput: onInput,
+            onResize: onResize
+        )
+    }
+
+    func makeUIView(context: Context) -> NativeTerminalView {
+        let terminalView = NativeTerminalView(frame: .zero)
+        terminalView.terminalDelegate = context.coordinator
+        context.coordinator.bind(to: terminalView)
+        return terminalView
+    }
+
+    func updateUIView(_ uiView: NativeTerminalView, context: Context) {
+        context.coordinator.bind(to: uiView)
+    }
+
+    static func dismantleUIView(_ uiView: NativeTerminalView, coordinator: Coordinator) {
+        coordinator.unbind(from: uiView)
+    }
+
+    final class Coordinator: NSObject, TerminalViewDelegate {
+        private let terminalSession: TerminalSession
+        private let onInput: (String) -> Void
+        private let onResize: ((Int, Int) -> Void)?
+
+        init(
+            terminalSession: TerminalSession,
+            onInput: @escaping (String) -> Void,
+            onResize: ((Int, Int) -> Void)?
+        ) {
+            self.terminalSession = terminalSession
+            self.onInput = onInput
+            self.onResize = onResize
+        }
+
+        @MainActor
+        func bind(to terminalView: SwiftTerm.TerminalView) {
+            terminalSession.attach(terminalView: terminalView)
+        }
+
+        @MainActor
+        func unbind(from terminalView: SwiftTerm.TerminalView) {
+            terminalSession.detach(terminalView: terminalView)
+        }
+
+        func sizeChanged(source: SwiftTerm.TerminalView, newCols: Int, newRows: Int) {
+            onResize?(newCols, newRows)
+        }
+
+        func setTerminalTitle(source: SwiftTerm.TerminalView, title: String) {
+            // No-op for now.
+        }
+
+        func hostCurrentDirectoryUpdate(source: SwiftTerm.TerminalView, directory: String?) {
+            // No-op for now.
+        }
+
+        func send(source: SwiftTerm.TerminalView, data: ArraySlice<UInt8>) {
+            let text = String(decoding: data, as: UTF8.self)
+            onInput(text)
+        }
+
+        func scrolled(source: SwiftTerm.TerminalView, position: Double) {
+            // No-op for now.
+        }
+
+        func requestOpenLink(source: SwiftTerm.TerminalView, link: String, params: [String: String]) {
+            guard let url = URL(string: link) else { return }
+            UIApplication.shared.open(url)
+        }
+
+        func bell(source: SwiftTerm.TerminalView) {
+            AudioServicesPlaySystemSound(1104)
+        }
+
+        func clipboardCopy(source: SwiftTerm.TerminalView, content: Data) {
+            guard let text = String(data: content, encoding: .utf8) else { return }
+            UIPasteboard.general.string = text
+        }
+
+        func iTermContent(source: SwiftTerm.TerminalView, content: ArraySlice<UInt8>) {
+            // No-op for now.
+        }
+
+        func rangeChanged(source: SwiftTerm.TerminalView, startY: Int, endY: Int) {
+            // No-op for now.
+        }
     }
 }
 
 struct TerminalView_Previews: PreviewProvider {
     static var previews: some View {
-        TerminalView(outputManager: TerminalOutputManager())
+        TerminalView(
+            terminalSession: TerminalSession(),
+            onInput: { _ in },
+            onResize: { _, _ in }
+        )
     }
 }
