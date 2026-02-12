@@ -68,8 +68,8 @@ volta run --node 22 npm run start-with-token
 手動で分ける場合：
 
 ```bash
-GATEWAY_HOST=$(tailscale ip -4 | head -n1) GATEWAY_PORT=8767 GATEWAY_SHELL=/bin/zsh npm run generate-token
-GATEWAY_HOST=$(tailscale ip -4 | head -n1) GATEWAY_PORT=8767 GATEWAY_SHELL=/bin/zsh npm start
+GATEWAY_HOST=$(tailscale ip -4 | head -n1) GATEWAY_PORT=8765 GATEWAY_SHELL=/bin/zsh npm run generate-token
+GATEWAY_HOST=$(tailscale ip -4 | head -n1) GATEWAY_PORT=8765 GATEWAY_SHELL=/bin/zsh npm start
 ```
 
 Universal Clipboard 有効時は、トークン生成後に Mac 側で別文字列をコピーすると iPhone クリップボードも上書きされます。接続前に余計なコピーをしないでください。

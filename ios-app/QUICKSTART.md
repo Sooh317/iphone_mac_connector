@@ -3,7 +3,8 @@
 ## 1. Open the Project
 
 ```bash
-cd /Users/sooh/Devs/iphone_mac_connector/ios-app/IphoneMacConnector
+# From repository root:
+cd ios-app/IphoneMacConnector
 open IphoneMacConnector.xcodeproj
 ```
 
@@ -264,14 +265,15 @@ After successful connection:
 Ensure your Mac server (from the main project) is running:
 
 ```bash
-# On Mac:
-cd /Users/sooh/Devs/iphone_mac_connector/mac-server
-python3 server.py --token YOUR_TOKEN
+# From repository root:
+cd mac-server
+npm install
+npm run start-with-token
 ```
 
 Look for:
 ```
-WebSocket server started on ws://0.0.0.0:8765/terminal
+Server started on <tailscale-ip>:8765
 ```
 
 ## 18. Success Checklist

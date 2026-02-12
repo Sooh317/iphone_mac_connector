@@ -11,7 +11,7 @@ else
   HOST="$(tailscale ip -4 2>/dev/null | head -n1 || true)"
 fi
 
-PORT="${GATEWAY_PORT:-8767}"
+PORT="${GATEWAY_PORT:-8765}"
 TOKEN_FILE="$HOME/.terminal-gateway-token"
 
 if [[ -z "${HOST}" ]]; then

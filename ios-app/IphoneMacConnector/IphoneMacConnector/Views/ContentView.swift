@@ -13,7 +13,7 @@ struct ContentView: View {
     var body: some View {
         ZStack {
             if webSocketService.connectionState.isConnected {
-                // Connected view - Terminal and input
+                // Connected view - Terminal
                 VStack(spacing: 0) {
                     // Status bar
                     statusBar
@@ -29,10 +29,6 @@ struct ContentView: View {
                         }
                     )
 
-                    // Command input
-                    CommandInputView(isConnected: .constant(webSocketService.connectionState.isConnected)) { command in
-                        webSocketService.sendCommand(command)
-                    }
                 }
             } else {
                 // Disconnected view - Settings
