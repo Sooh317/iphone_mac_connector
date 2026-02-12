@@ -36,8 +36,42 @@
 - [x] 8.1 npm scripts (start, generate-token)
 - [ ] 8.2 手動起動テスト
 
-## Phase 9-17: iOS クライアント
-- [ ] 未着手
+## Phase 9: iOS クライアント — Xcode プロジェクト作成
+- [x] 9.1 プロジェクト初期化 (SwiftUI App, iOS 16.0+)
+- [x] 9.2 プロジェクト構成 (Models/, Views/, Services/, Utilities/)
+
+## Phase 10: iOS クライアント — データモデル
+- [x] 10.1 メッセージモデル (Message.swift - WebSocket メッセージ)
+- [x] 10.2 接続設定モデル (ConnectionConfig.swift)
+
+## Phase 11: iOS クライアント — Keychain 管理
+- [x] 11.1 Keychain ラッパー (KeychainService.swift - kSecClassGenericPassword)
+
+## Phase 12: iOS クライアント — WebSocket サービス
+- [x] 12.1 WebSocket 接続管理 (URLSessionWebSocketTask)
+- [x] 12.2 メッセージ送信 (sendInput, sendResize, sendHeartbeat)
+- [x] 12.3 メッセージ受信 (出力、エラー、heartbeat 処理)
+- [x] 12.4 切断処理
+- [x] 12.5 Heartbeat 管理 (30秒間隔、自動再接続)
+
+## Phase 13: iOS クライアント — ターミナル出力管理
+- [x] 13.1 出力バッファ (TerminalOutputManager.swift - 10000行上限)
+
+## Phase 14: iOS クライアント — 接続設定画面
+- [x] 14.1 接続設定ビュー (ConnectionSettingsView.swift - host/port/token入力)
+
+## Phase 15: iOS クライアント — ターミナル画面
+- [x] 15.1 ターミナル出力ビュー (TerminalView.swift - モノスペース、自動スクロール)
+- [x] 15.2 入力欄 (CommandInputView.swift - コマンド履歴50件)
+- [x] 15.3 接続状態表示
+
+## Phase 16: iOS クライアント — メイン画面統合
+- [x] 16.1 画面遷移 (ContentView.swift)
+- [x] 16.2 ViewModel 統合
+
+## Phase 17: iOS クライアント — ビルドと実機テスト
+- [ ] 17.1 ビルド確認
+- [ ] 17.2 実機テスト（Tailscale 環境）
 
 ## Phase 18: launchd による常駐化
 - [ ] 未着手
