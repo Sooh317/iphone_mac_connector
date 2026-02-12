@@ -3,6 +3,8 @@ import SwiftUI
 struct ConnectionSettingsView: View {
     @Binding var config: ConnectionConfig
     @Binding var isShowingSettings: Bool
+    let connectionState: ConnectionState
+    let lastError: String?
 
     @State private var host: String = ""
     @State private var portString: String = ""
@@ -61,6 +63,35 @@ struct ConnectionSettingsView: View {
                             .font(.caption)
                             .foregroundColor(.red)
                     }
+
+                    HStack {
+                        Text("Connection")
+                        Spacer()
+                        switch connectionState {
+                        case .disconnected:
+                            Text("Disconnected")
+                                .foregroundColor(.secondary)
+                        case .connecting:
+                            HStack(spacing: 6) {
+                                ProgressView()
+                                    .scaleEffect(0.8)
+                                Text("Connecting...")
+                                    .foregroundColor(.orange)
+                            }
+                        case .connected:
+                            Text("Connected")
+                                .foregroundColor(.green)
+                        case .error:
+                            Text("Failed")
+                                .foregroundColor(.red)
+                        }
+                    }
+
+                    if let lastError = lastError, !lastError.isEmpty {
+                        Text(lastError)
+                            .font(.caption)
+                            .foregroundColor(.red)
+                    }
                 }
 
                 Section {
@@ -82,7 +113,7 @@ struct ConnectionSettingsView: View {
                             Spacer()
                         }
                     }
-                    .disabled(!isConfigValid)
+                    .disabled(!isConfigValid || isConnecting)
                     .buttonStyle(.borderedProminent)
                 }
 
@@ -124,6 +155,13 @@ struct ConnectionSettingsView: View {
                 loadCurrentConfig()
             }
         }
+    }
+
+    private var isConnecting: Bool {
+        if case .connecting = connectionState {
+            return true
+        }
+        return false
     }
 
     private var isConfigValid: Bool {
@@ -212,6 +250,8 @@ struct ConnectionSettingsView_Previews: PreviewProvider {
         ConnectionSettingsView(
             config: .constant(ConnectionConfig()),
             isShowingSettings: .constant(false),
+            connectionState: .disconnected,
+            lastError: nil,
             onConnect: {}
         )
     }

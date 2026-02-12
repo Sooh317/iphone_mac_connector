@@ -55,7 +55,7 @@ cd /Users/sooh/Devs/iphone_mac_connector/mac-server
 volta run --node 22 npm run start-with-token
 
 # ポート占有確認
-lsof -nP -iTCP:8767 -sTCP:LISTEN
+lsof -nP -iTCP:8765 -sTCP:LISTEN
 
 # ログ監視
 tail -f ~/.terminal-gateway/audit.log

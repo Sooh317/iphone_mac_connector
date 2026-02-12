@@ -8,7 +8,7 @@ import crypto from 'crypto';
 import { spawn } from 'child_process';
 
 // Test configuration
-const TEST_PORT = 8767; // Use different port for PTY testing
+const TEST_PORT = 8768; // Use different port for PTY testing
 const TEST_HOST = '127.0.0.1';
 const TEST_TOKEN_FILE = path.join(os.tmpdir(), `test-pty-token-${Date.now()}`);
 const TEST_TOKEN = crypto.randomBytes(32).toString('hex');
