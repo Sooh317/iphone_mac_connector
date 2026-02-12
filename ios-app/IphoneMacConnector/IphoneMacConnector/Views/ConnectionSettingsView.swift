@@ -9,6 +9,7 @@ struct ConnectionSettingsView: View {
     @State private var host: String = ""
     @State private var portString: String = ""
     @State private var token: String = ""
+    @State private var isTokenVisible = false
     @State private var showingSaveAlert = false
     @State private var saveAlertMessage = ""
 
@@ -40,71 +41,79 @@ struct ConnectionSettingsView: View {
                 }
 
                 Section(header: Text("Authentication")) {
-                    SecureField("Access Token", text: $token)
+                    HStack(spacing: 8) {
+                        Group {
+                            if isTokenVisible {
+                                TextField("Access Token", text: $token)
+                            } else {
+                                SecureField("Access Token", text: $token)
+                            }
+                        }
                         .autocapitalization(.none)
                         .disableAutocorrection(true)
+
+                        Button(action: { isTokenVisible.toggle() }) {
+                            Image(systemName: isTokenVisible ? "eye.slash" : "eye")
+                                .foregroundColor(.secondary)
+                        }
+                        .accessibilityLabel(isTokenVisible ? "Hide token" : "Show token")
+                    }
                 }
 
                 Section(header: Text("Connection Status")) {
-                    HStack {
-                        Text("Configuration")
-                        Spacer()
-                        if isConfigValid {
-                            Text("Valid")
-                                .foregroundColor(.green)
-                        } else {
-                            Text("Invalid")
-                                .foregroundColor(.red)
-                        }
-                    }
-
-                    if let errorMessage = validationError {
-                        Text(errorMessage)
-                            .font(.caption)
-                            .foregroundColor(.red)
-                    }
-
-                    HStack {
-                        Text("Connection")
-                        Spacer()
-                        switch connectionState {
-                        case .disconnected:
-                            Text("Disconnected")
-                                .foregroundColor(.secondary)
-                        case .connecting:
-                            HStack(spacing: 6) {
-                                ProgressView()
-                                    .scaleEffect(0.8)
-                                Text("Connecting...")
-                                    .foregroundColor(.orange)
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack {
+                            Text("Configuration")
+                            Spacer()
+                            if isConfigValid {
+                                Text("Valid")
+                                    .foregroundColor(.green)
+                            } else {
+                                Text("Invalid")
+                                    .foregroundColor(.red)
                             }
-                        case .connected:
-                            Text("Connected")
-                                .foregroundColor(.green)
-                        case .error:
-                            Text("Failed")
+                        }
+
+                        if let errorMessage = validationError {
+                            Text(errorMessage)
+                                .font(.caption)
                                 .foregroundColor(.red)
                         }
                     }
 
-                    if let lastError = lastError, !lastError.isEmpty {
-                        Text(lastError)
-                            .font(.caption)
-                            .foregroundColor(.red)
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack {
+                            Text("Connection")
+                            Spacer()
+                            switch connectionState {
+                            case .disconnected:
+                                Text("Disconnected")
+                                    .foregroundColor(.secondary)
+                            case .connecting:
+                                HStack(spacing: 6) {
+                                    ProgressView()
+                                        .scaleEffect(0.8)
+                                    Text("Connecting...")
+                                        .foregroundColor(.orange)
+                                }
+                            case .connected:
+                                Text("Connected")
+                                    .foregroundColor(.green)
+                            case .error:
+                                Text("Failed")
+                                    .foregroundColor(.red)
+                            }
+                        }
+
+                        if let lastError = lastError, !lastError.isEmpty {
+                            Text(lastError)
+                                .font(.caption)
+                                .foregroundColor(.red)
+                        }
                     }
                 }
 
                 Section {
-                    Button(action: saveConfiguration) {
-                        HStack {
-                            Spacer()
-                            Text("Save Configuration")
-                                .fontWeight(.semibold)
-                            Spacer()
-                        }
-                    }
-                    .disabled(!isConfigValid)
-
                     Button(action: connectToServer) {
                         HStack {
                             Spacer()
@@ -118,6 +127,16 @@ struct ConnectionSettingsView: View {
                 }
 
                 Section {
+                    Button(action: saveConfiguration) {
+                        HStack {
+                            Spacer()
+                            Text("Save Configuration")
+                                .fontWeight(.semibold)
+                            Spacer()
+                        }
+                    }
+                    .disabled(!isConfigValid)
+
                     Button(action: loadSavedConfiguration) {
                         HStack {
                             Spacer()
