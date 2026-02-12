@@ -7,6 +7,8 @@ struct ContentView: View {
     @State private var config = ConnectionConfig.load()
     @State private var showingSettings = false
     @State private var showingDisconnectAlert = false
+    @State private var showingTokenImportAlert = false
+    @State private var tokenImportMessage = ""
 
     var body: some View {
         ZStack {
@@ -31,6 +33,8 @@ struct ContentView: View {
                 ConnectionSettingsView(
                     config: $config,
                     isShowingSettings: $showingSettings,
+                    connectionState: webSocketService.connectionState,
+                    lastError: webSocketService.lastError,
                     onConnect: connectToServer
                 )
             }
@@ -39,6 +43,8 @@ struct ContentView: View {
             ConnectionSettingsView(
                 config: $config,
                 isShowingSettings: $showingSettings,
+                connectionState: webSocketService.connectionState,
+                lastError: webSocketService.lastError,
                 onConnect: connectToServer
             )
         }
@@ -49,6 +55,14 @@ struct ContentView: View {
             }
         } message: {
             Text("Are you sure you want to disconnect from the server?")
+        }
+        .alert("Token Import", isPresented: $showingTokenImportAlert) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text(tokenImportMessage)
+        }
+        .onOpenURL { url in
+            handleIncomingURL(url)
         }
         .onAppear {
             setupWebSocketCallbacks()
@@ -72,6 +86,13 @@ struct ContentView: View {
 
             // Action buttons
             HStack(spacing: 16) {
+                // New terminal session button
+                Button(action: createNewTerminalSession) {
+                    Image(systemName: "plus.rectangle.on.rectangle")
+                        .font(.title3)
+                        .foregroundColor(.green)
+                }
+
                 // Clear output button
                 Button(action: clearOutput) {
                     Image(systemName: "trash")
@@ -153,6 +174,28 @@ struct ContentView: View {
 
     private func clearOutput() {
         outputManager.clear()
+    }
+
+    private func createNewTerminalSession() {
+        outputManager.clear()
+        webSocketService.restartTerminalSession()
+    }
+
+    private func handleIncomingURL(_ url: URL) {
+        guard url.scheme?.lowercased() == "iphonemacconnector",
+              url.host == "import-token",
+              let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+              let token = components.queryItems?.first(where: { $0.name == "token" })?.value?
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+              !token.isEmpty else {
+            return
+        }
+
+        KeychainService.shared.saveToken(token)
+        config.token = token
+        showingSettings = true
+        tokenImportMessage = "Token imported from QR. Review settings and tap Connect."
+        showingTokenImportAlert = true
     }
 }
 

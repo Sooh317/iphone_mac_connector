@@ -110,6 +110,26 @@ class WebSocketService: NSObject, ObservableObject {
         print("WebSocketService: Disconnected")
     }
 
+    /// Restart terminal session by reconnecting with the last known configuration.
+    /// The server creates a new PTY per WebSocket connection.
+    func restartTerminalSession() {
+        guard let config else {
+            DispatchQueue.main.async {
+                self.connectionState = .error("No saved connection config")
+                self.lastError = "No saved connection config"
+            }
+            return
+        }
+
+        let hadActiveTask = webSocketTask != nil
+        disconnect()
+
+        let reconnectDelay: TimeInterval = hadActiveTask ? 0.35 : 0.0
+        DispatchQueue.main.asyncAfter(deadline: .now() + reconnectDelay) { [weak self] in
+            self?.connect(config: config)
+        }
+    }
+
     /// Send a message to the server
     func sendMessage(_ message: WSMessage) {
         guard connectionState.isConnected else {

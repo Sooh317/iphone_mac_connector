@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct TerminalView: View {
     @ObservedObject var outputManager: TerminalOutputManager
@@ -31,10 +32,10 @@ struct TerminalView: View {
                 ScrollViewReader { proxy in
                     ScrollView {
                         VStack(alignment: .leading, spacing: 0) {
-                            Text(outputManager.outputText)
+                            Text(outputManager.attributedOutput)
                                 .font(.system(.body, design: .monospaced))
-                                .foregroundColor(.green)
                                 .textSelection(.enabled)
+                                .lineLimit(nil)
                                 .padding(8)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .id("terminalBottom")
@@ -89,22 +90,30 @@ struct TerminalView: View {
     }
 
     private func calculateTerminalSize(from size: CGSize) {
-        // Approximate character size for system monospaced font (.body)
-        let charWidth: CGFloat = 8.4
-        let charHeight: CGFloat = 17.0
-        let padding: CGFloat = 16.0
+        let font = UIFont.monospacedSystemFont(
+            ofSize: UIFont.preferredFont(forTextStyle: .body).pointSize,
+            weight: .regular
+        )
+        let characterSize = ("W" as NSString).size(withAttributes: [.font: font])
+        let charWidth = max(characterSize.width, 1.0)
+        let charHeight = max(characterSize.height, 1.0)
+        let horizontalPadding: CGFloat = 16.0
+        let verticalPadding: CGFloat = 16.0
 
-        let availableWidth = size.width - padding
-        let availableHeight = size.height - padding
+        let availableWidth = max(0, size.width - horizontalPadding)
+        let availableHeight = max(0, size.height - verticalPadding)
 
-        let newCols = max(20, Int(availableWidth / charWidth))
-        let newRows = max(5, Int(availableHeight / charHeight))
+        let newCols = max(20, Int(floor(availableWidth / charWidth)))
+        let newRows = max(5, Int(floor(availableHeight / charHeight)))
 
-        if newCols != currentCols || newRows != currentRows {
+        if newCols != currentCols {
             currentCols = newCols
             currentRows = newRows
             onResize?(newCols, newRows)
+            return
         }
+
+        currentRows = newRows
     }
 }
 

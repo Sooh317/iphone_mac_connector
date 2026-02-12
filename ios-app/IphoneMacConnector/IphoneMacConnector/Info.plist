@@ -12,6 +12,19 @@
 	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>com.iphonemacconnector.deeplink</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>iphonemacconnector</string>
+			</array>
+		</dict>
+	</array>
 	<key>CFBundleName</key>
 	<string>$(PRODUCT_NAME)</string>
 	<key>CFBundlePackageType</key>
@@ -60,5 +73,9 @@
 			</dict>
 		</dict>
 	</dict>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Use the microphone to dictate terminal input.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Convert your speech into text for terminal commands.</string>
 </dict>
 </plist>
