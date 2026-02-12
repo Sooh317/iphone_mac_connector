@@ -11,8 +11,36 @@ struct ConnectionConfig: Codable {
         self.token = token
     }
 
+    var isTailscaleHost: Bool {
+        // Check for Tailscale IP addresses (100.64.0.0/10 range)
+        if host.hasPrefix("100.") {
+            return true
+        }
+        // Check for Tailscale MagicDNS hostnames (.ts.net)
+        if host.hasSuffix(".ts.net") {
+            return true
+        }
+        return false
+    }
+
     var isValid: Bool {
-        !host.isEmpty && port > 0 && port <= 65535 && !token.isEmpty
+        !host.isEmpty && isTailscaleHost && port > 0 && port <= 65535 && !token.isEmpty
+    }
+
+    var validationError: String? {
+        if host.isEmpty {
+            return "Host cannot be empty"
+        }
+        if !isTailscaleHost {
+            return "Host must be a Tailscale IP (100.x.x.x) or MagicDNS hostname (.ts.net)"
+        }
+        if port <= 0 || port > 65535 {
+            return "Port must be between 1 and 65535"
+        }
+        if token.isEmpty {
+            return "Token cannot be empty"
+        }
+        return nil
     }
 
     var websocketURL: URL? {

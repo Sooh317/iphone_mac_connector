@@ -370,3 +370,209 @@
 - [ ] 監査ログに接続イベントが残る
 - [ ] トークンファイルの権限が `600` である
 - [ ] Gateway が非 root ユーザーで動作している
+
+---
+
+## Phase 21: Codex レビュー指摘修正（第2回）
+
+> Codex CLI による第2回レビューで検出された 7 項目への対応。
+> 優先度: Critical → High → Medium の順。
+
+---
+
+### 21.1 [Critical] iOS テストターゲットを Xcode プロジェクトに追加
+
+**問題**: テストファイル（4 個）は作成済みだが、`.xcodeproj` に test target が存在しない。`xcodebuild test` が実行できず、CI/CD にも組み込めない。
+
+**対象ファイル**: `ios-app/IphoneMacConnector/IphoneMacConnector.xcodeproj/project.pbxproj`
+
+**手順**:
+- [ ] Xcode でプロジェクトを開く
+- [ ] File → New → Target → Unit Testing Bundle を選択
+- [ ] ターゲット名: `IphoneMacConnectorTests`
+- [ ] テスト対象 (Host Application): `IphoneMacConnector`
+- [ ] 以下の 4 ファイルをテストターゲットに追加:
+  - `IphoneMacConnectorTests/ConnectionConfigTests.swift`
+  - `IphoneMacConnectorTests/KeychainServiceTests.swift`
+  - `IphoneMacConnectorTests/TerminalOutputManagerTests.swift`
+  - `IphoneMacConnectorTests/WebSocketServiceTests.swift`
+- [ ] `IphoneMacConnectorTests/Info.plist` をテストターゲットに関連付け
+- [ ] Xcode 上で Cmd+U でテストが実行可能なことを確認
+
+---
+
+### 21.2 [High] iOS テストコードの API 不整合を修正
+
+**問題**: `WebSocketServiceTests.swift` が実在しない API を参照しており、コンパイルが通らない。
+
+**対象ファイル**: `ios-app/.../IphoneMacConnectorTests/WebSocketServiceTests.swift`
+
+**詳細と修正手順**:
+
+#### 21.2a `sendHeartbeat()` が private
+
+- `WebSocketService.swift:148` で `sendHeartbeat()` は `private` 宣言
+- `WebSocketServiceTests.swift:115` でテストから直接呼び出しているためコンパイルエラー
+- [ ] テストを削除するか、間接的なテストに書き換える
+  - 案: heartbeat 送信は Timer 経由で呼ばれるため、接続後に一定時間待ってサーバー側でハートビートを受信したことを確認する形に変更
+  - 最小修正: `testSendHeartbeat_WhenDisconnected` テストケースを削除
+
+#### 21.2b 存在しない `lastOutputReceived` プロパティ
+
+- `WebSocketServiceTests.swift:126` で `service.$lastOutputReceived` を参照
+- 実際の API はコールバック方式: `service.onOutputReceived: ((String) -> Void)?`（`WebSocketService.swift:49`）
+- [ ] `testReceiveMessage_Output` テストをコールバック方式に書き換え:
+  ```swift
+  func testReceiveMessage_OutputCallback() {
+      // WSMessage の JSON デコードが正しいことをテスト
+      let json = "{\"type\":\"output\",\"data\":\"test output\"}"
+      if let data = json.data(using: .utf8),
+         let message = try? JSONDecoder().decode(WSMessage.self, from: data) {
+          XCTAssertEqual(message.type, .output)
+          XCTAssertEqual(message.data, "test output")
+      } else {
+          XCTFail("Failed to decode WSMessage")
+      }
+  }
+  ```
+
+---
+
+### 21.3 [High] Node.js auth テストの実装不整合を修正
+
+**問題**: テストが実際の `auth.js` API シグネチャ・戻り値と合っておらず、3 テストが失敗する。
+
+**対象ファイル**:
+- `mac-server/test/integration/auth.test.js`（テスト修正）
+- `mac-server/src/auth.js`（実装修正）
+
+**詳細と修正手順**:
+
+#### 21.3a `extractBearerToken('Bearer ')` の戻り値
+
+- テスト（L28）は `null` を期待
+- 実装（`auth.js:98-104`）: `'Bearer '.split(' ')` → `['Bearer', '']` → `parts[1]` = `''`（空文字）を返す
+- [ ] `auth.js` L100 の条件を `!parts[1]` 追加で空トークンも `null` を返すよう修正:
+  ```js
+  if (parts.length !== 2 || parts[0] !== 'Bearer' || !parts[1]) {
+    return null;
+  }
+  ```
+
+#### 21.3b `verifyToken` のシグネチャ不一致
+
+- テスト（L48, L85）: `verifyToken(token, testTokenFile)` — 第2引数にトークンファイルパスを渡している
+- 実装（`auth.js:62`）: `verifyToken(providedToken)` — 引数は 1 つ、トークンファイルは内部の `config` から読む
+- `config` はモジュールロード時（`config.js:167`）に確定するため、テストからの差し替えが困難
+- [ ] `verifyToken` / `authenticateRequest` テストを以下の方針で書き換え:
+  1. テスト実行前に `GATEWAY_TOKEN_FILE` 環境変数でトークンファイルを指定
+  2. `ALLOW_INSECURE_BIND=true` を設定（`127.0.0.1` bind を許可）
+  3. config.json をテスト用に `0600` 権限で生成
+  4. テスト対象を `extractBearerToken`（純粋関数）に絞り、`verifyToken` / `authenticateRequest` は統合テスト（connection.test.js）側でカバーする
+- [ ] `auth.test.js` の `verifyToken` / `authenticateRequest` テストスイートを削除または統合テストに移動
+
+---
+
+### 21.4 [High] MagicDNS 扱いの整合性を修正
+
+**問題**: サーバー listen アドレス検証は実 IP のみ許可（`config.js:59-66` で `os.networkInterfaces()` と照合）だが、`config.json.example` のコメントが MagicDNS ホスト名を案内しており矛盾。
+
+**対象ファイル**: `mac-server/config.json.example`
+
+**背景**:
+- サーバーの `host` は Listen アドレスであり、OS の NIC に存在する IP でなければならない
+- MagicDNS ホスト名（`*.ts.net`）は Listen アドレスとしては使えない（DNS 解決が必要）
+- iOS クライアント側は接続先として `.ts.net` を使えるのは正しい
+
+**修正手順**:
+- [ ] `config.json.example` のコメントから MagicDNS 言及を削除し、Listen アドレスであることを明確化:
+  ```json
+  {
+    "host": "100.x.y.z",
+    "port": 8765,
+    "shell": "/bin/zsh",
+    "tokenFile": "~/.terminal-gateway-token",
+    "_comment": "host にはサーバーの Tailscale IP アドレス (100.x.y.z) を設定してください。ifconfig で確認できます。MagicDNS ホスト名 (.ts.net) は Listen アドレスには使用できません（iOS クライアント側の接続先としては使用可能）。"
+  }
+  ```
+
+---
+
+### 21.5 [Medium] Mac 統合テストのハードニング対応
+
+**問題**: `connection.test.js` / `pty.test.js` がサーバー起動に失敗する。原因は 2 つ:
+1. 生成する `config.json` が `0644` 権限だが、実装は `0600` を要求（`config.js:123`）
+2. `ALLOW_INSECURE_BIND=true` がサーバー起動環境に未設定（`127.0.0.1` bind が拒否される）
+
+**対象ファイル**:
+- `mac-server/test/integration/connection.test.js`
+- `mac-server/test/integration/pty.test.js`
+
+**修正手順**:
+- [ ] config.json 書き込み後に `0600` 権限を設定:
+  ```js
+  fs.writeFileSync(configPath, JSON.stringify(testConfig, null, 2), { mode: 0o600 });
+  ```
+- [ ] トークンファイルにも `0600` 権限を設定:
+  ```js
+  fs.writeFileSync(TEST_TOKEN_FILE, TEST_TOKEN, { mode: 0o600 });
+  ```
+- [ ] サーバー起動時の spawn env に `ALLOW_INSECURE_BIND: 'true'` を追加:
+  ```js
+  serverProcess = spawn('node', ['src/server.js'], {
+    env: { ...process.env, NODE_ENV: 'test', ALLOW_INSECURE_BIND: 'true' },
+    cwd: process.cwd()
+  });
+  ```
+- [ ] config.json のリストア処理をサーバー起動完了の **後** に移動しない（サーバーが起動直後に読むため、削除のタイミングに注意）。起動待ち → 削除の順を維持しつつ、バックアップ側にも `0600` を設定
+
+---
+
+### 21.6 [Medium] Info.plist から不要な SceneDelegate 参照を削除
+
+**問題**: `Info.plist:36-37` で `$(PRODUCT_MODULE_NAME).SceneDelegate` を指定しているが、該当クラスはリポジトリに存在しない。SwiftUI App ライフサイクル（`@main struct IphoneMacConnectorApp: App`）では不要。起動時の不安定動作の原因となりうる。
+
+**対象ファイル**: `ios-app/IphoneMacConnector/IphoneMacConnector/Info.plist`
+
+**修正手順**:
+- [ ] `UIApplicationSceneManifest` ディクショナリ全体（L25〜L41）を削除:
+  ```xml
+  <!-- 以下を削除 -->
+  <key>UIApplicationSceneManifest</key>
+  <dict>
+    <key>UIApplicationSupportsMultipleScenes</key>
+    <false/>
+    <key>UISceneConfigurations</key>
+    <dict>
+      <key>UIWindowSceneSessionRoleApplication</key>
+      <array>
+        <dict>
+          <key>UISceneConfigurationName</key>
+          <string>Default Configuration</string>
+          <key>UISceneDelegateClassName</key>
+          <string>$(PRODUCT_MODULE_NAME).SceneDelegate</string>
+        </dict>
+      </array>
+    </dict>
+  </dict>
+  ```
+- [ ] Xcode で Clean Build → ビルド成功を確認
+
+---
+
+### 21.7 [Medium] progress.md を実態に合わせて更新
+
+**問題**: `progress.md:73-80` が未着手のままで、実際の進捗と乖離している。
+
+**対象ファイル**: `docs/progress.md`
+
+**修正手順**:
+- [ ] Phase 19 のステータスを更新（テストファイル作成済み・修正中）:
+  ```
+  ## Phase 19: 異常系テスト
+  - [x] テストファイル作成（auth.test.js, connection.test.js, pty.test.js, iOS XCTest 4 ファイル）
+  - [ ] テスト実行環境の整備（21.1〜21.5 の修正完了後）
+  - [ ] 全テスト PASS 確認
+  ```
+- [ ] Phase 20 を受け入れ基準チェック状態として維持（実機テスト後に更新）
+- [ ] Phase 21 を追加し、本タスク一覧の進捗を反映

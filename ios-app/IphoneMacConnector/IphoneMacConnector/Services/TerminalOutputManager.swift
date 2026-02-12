@@ -25,11 +25,13 @@ class TerminalOutputManager: ObservableObject {
             lines.append(line)
         }
 
-        lineCount = lines.count
+        let newCount = lines.count
+        let newOutput = lines.joined(separator: "\n")
 
-        // Update published property on main thread
+        // Update published properties on main thread
         DispatchQueue.main.async {
-            self.outputText = self.lines.joined(separator: "\n")
+            self.lineCount = newCount
+            self.outputText = newOutput
         }
     }
 
@@ -39,9 +41,10 @@ class TerminalOutputManager: ObservableObject {
         defer { lock.unlock() }
 
         lines.removeAll()
-        lineCount = 0
 
+        // Update published properties on main thread
         DispatchQueue.main.async {
+            self.lineCount = 0
             self.outputText = ""
         }
     }

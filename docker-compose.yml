@@ -5,15 +5,18 @@ services:
       dockerfile: Dockerfile
     container_name: terminal-gateway
     ports:
-      - "${TAILSCALE_IP:-127.0.0.1}:8765:8765"
+      # TAILSCALE_IP must be set to your Tailscale IP (e.g., 100.x.y.z) or MagicDNS hostname
+      - "${TAILSCALE_IP:?ERROR: TAILSCALE_IP must be set to your Tailscale IP address}:8765:8765"
     volumes:
       # Mount token and logs directory
       - gateway-data:/data
     environment:
       - NODE_ENV=production
-      - GATEWAY_HOST=${GATEWAY_HOST:-127.0.0.1}
+      # GATEWAY_HOST must match your Tailscale IP for security
+      - GATEWAY_HOST=${GATEWAY_HOST:?ERROR: GATEWAY_HOST must be set to your Tailscale IP address}
       - GATEWAY_TOKEN_FILE=/data/terminal-gateway-token
-      - ALLOW_INSECURE_BIND=${ALLOW_INSECURE_BIND:-true}
+      # Insecure bind is disabled by default for security (allows only Tailscale interface)
+      - ALLOW_INSECURE_BIND=${ALLOW_INSECURE_BIND:-false}
     restart: unless-stopped
     networks:
       - gateway-network

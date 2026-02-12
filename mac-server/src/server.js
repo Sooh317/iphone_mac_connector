@@ -51,7 +51,8 @@ function handleConnection(ws, request) {
     return;
   }
 
-  // Track session for graceful shutdown
+  // Track session for graceful shutdown with disconnect reason
+  let disconnectReason = 'client closed connection';
   const session = { ws, ptyProcess };
   activeSessions.add(session);
 
@@ -71,6 +72,7 @@ function handleConnection(ws, request) {
     const elapsed = Date.now() - lastHeartbeatReceived;
     if (elapsed > 90000) {
       logger.warn(`Heartbeat timeout for ${clientIp} (${elapsed}ms)`);
+      disconnectReason = 'heartbeat timeout';
       clearInterval(heartbeatInterval);
       clearInterval(timeoutCheck);
       ws.close(1001, 'Heartbeat timeout');
@@ -118,12 +120,28 @@ function handleConnection(ws, request) {
   });
 
   // Handle disconnection
-  ws.on('close', () => {
+  ws.on('close', (code, reason) => {
     clearInterval(heartbeatInterval);
     clearInterval(timeoutCheck);
     activeConnections--;
     activeSessions.delete(session);
-    logger.logDisconnection(clientIp, 'client closed connection');
+
+    // Use close code and reason to determine disconnect cause
+    let finalReason = disconnectReason;
+    if (code === 1000) {
+      finalReason = 'normal closure';
+    } else if (code === 1001 && reason.toString() === 'Heartbeat timeout') {
+      finalReason = 'heartbeat timeout';
+    } else if (code === 1001 && reason.toString() === 'Server shutdown') {
+      finalReason = 'server shutdown';
+    } else if (code === 1006) {
+      finalReason = 'abnormal closure (connection lost)';
+    } else if (code !== 1001) {
+      // For other codes, include the code in the reason
+      finalReason = `${disconnectReason} (code: ${code})`;
+    }
+
+    logger.logDisconnection(clientIp, finalReason);
     killPty(ptyProcess);
   });
 }
@@ -135,8 +153,10 @@ function shutdown(signal, server) {
   logger.info(`Shutdown signal received: ${signal}`);
 
   // Close all active sessions
-  for (const { ws, ptyProcess } of activeSessions) {
+  for (const session of activeSessions) {
+    const { ws, ptyProcess } = session;
     try {
+      // Mark this as server shutdown before closing
       ws.close(1001, 'Server shutdown');
     } catch (error) {
       logger.error(`Error closing WebSocket: ${error.message}`);

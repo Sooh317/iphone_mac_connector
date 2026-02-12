@@ -16,10 +16,16 @@ struct ConnectionSettingsView: View {
         NavigationView {
             Form {
                 Section(header: Text("Server Configuration")) {
-                    TextField("Host (IP or hostname)", text: $host)
-                        .autocapitalization(.none)
-                        .disableAutocorrection(true)
-                        .keyboardType(.URL)
+                    VStack(alignment: .leading, spacing: 4) {
+                        TextField("Tailscale IP or hostname", text: $host)
+                            .autocapitalization(.none)
+                            .disableAutocorrection(true)
+                            .keyboardType(.URL)
+
+                        Text("Example: 100.x.y.z or macbook.ts.net")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
 
                     HStack {
                         Text("Port")
@@ -50,10 +56,10 @@ struct ConnectionSettingsView: View {
                         }
                     }
 
-                    if !isConfigValid {
-                        Text("Please fill in all fields with valid values")
+                    if let errorMessage = validationError {
+                        Text(errorMessage)
                             .font(.caption)
-                            .foregroundColor(.secondary)
+                            .foregroundColor(.red)
                     }
                 }
 
@@ -121,9 +127,21 @@ struct ConnectionSettingsView: View {
     }
 
     private var isConfigValid: Bool {
-        !host.trimmingCharacters(in: .whitespaces).isEmpty &&
-        portNumber > 0 && portNumber <= 65535 &&
-        !token.trimmingCharacters(in: .whitespaces).isEmpty
+        let tempConfig = ConnectionConfig(
+            host: host.trimmingCharacters(in: .whitespaces),
+            port: portNumber,
+            token: token.trimmingCharacters(in: .whitespaces)
+        )
+        return tempConfig.isValid
+    }
+
+    private var validationError: String? {
+        let tempConfig = ConnectionConfig(
+            host: host.trimmingCharacters(in: .whitespaces),
+            port: portNumber,
+            token: token.trimmingCharacters(in: .whitespaces)
+        )
+        return tempConfig.validationError
     }
 
     private var portNumber: Int {

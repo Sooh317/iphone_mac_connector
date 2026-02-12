@@ -6,7 +6,8 @@
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
-    "generate-token": "node scripts/generate-token.js"
+    "generate-token": "node scripts/generate-token.js",
+    "test": "node --test test/**/*.test.js"
   },
   "keywords": [],
   "author": "",
